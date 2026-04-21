@@ -29,11 +29,9 @@ Every SR&ED research issue must be tagged to one of these (or "Cross-cutting").
 
 ## Labels
 
-- `sred` — applied to all SR&ED Research and Experiment Log issues.
-- `research` — SR&ED Research Issues only.
-- `experiment` — Experiment Log entries only.
+- `sred` — umbrella label for all SR&ED work. Apply to every SR&ED Research Issue and every Experiment Log Entry. The distinction between a research investigation and an experiment log entry is carried by the issue template (not a separate label), so `sred` alone is sufficient to filter all SR&ED activity in one query.
 - `engineering` — non-SR&ED engineering work.
-- `wp1` … `wp6`, `cross-cutting` — secondary label matching the Uncertainty field, for filtering.
+- `wp1` … `wp6`, `cross-cutting` — secondary label matching the Uncertainty field, for filtering by work package.
 
 ## Commit and PR conventions
 
