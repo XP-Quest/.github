@@ -1,6 +1,6 @@
-# RSE SR&ED Tracking Conventions
+# XP Quest SR&ED Tracking Conventions
 
-This document describes how Red Shirt Engineering tracks technological uncertainty investigations across GitHub for the purpose of a Canadian SR&ED claim (federal) stacked with the Ontario Innovation Tax Credit (OITC).
+This document describes how XP Quest tracks technological uncertainty investigations across GitHub for the purpose of a Canadian SR&ED claim (federal) stacked with the Ontario Innovation Tax Credit (OITC).
 
 It is written for a solo founder/developer who will also be the claim preparer.
 
@@ -57,7 +57,7 @@ Two GitHub Projects at the org level:
 1. **R&D / AI Engine** — all SR&ED research and experiment issues. Custom fields: Uncertainty (WP1–WP6), Phase.
 2. **Product & Platform** — non-SR&ED engineering. Custom fields: Area, Priority.
 
-## Before filing a research issue, ask yourself
+## Before filing a research issue, ask youxpquestlf
 
 1. Is there a real technological uncertainty here that a skilled practitioner couldn't resolve with existing knowledge and routine effort? If no, file it as an Engineering Task instead.
 2. Can I state a hypothesis that could be falsified? If no, keep thinking before filing.
