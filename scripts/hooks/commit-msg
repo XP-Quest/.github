@@ -34,11 +34,11 @@ subject=$(sed -n "${lineno}p" "$msg_file")
 if [[ "$branch" =~ ^([0-9]+)- ]]; then
   branch_issue="${BASH_REMATCH[1]}"
 
-  if [[ "$subject" =~ ^#${branch_issue}:\  ]]; then
+  if [[ "$subject" =~ ^#${branch_issue}:[[:space:]]+ ]]; then
     exit 0
   fi
 
-  if [[ "$subject" =~ ^#([0-9]+):\  ]]; then
+  if [[ "$subject" =~ ^#([0-9]+):[[:space:]]+ ]]; then
     msg_issue="${BASH_REMATCH[1]}"
     echo "commit-msg: subject references #${msg_issue} but branch is for #${branch_issue}." >&2
     echo "  branch:  $branch" >&2
@@ -52,7 +52,7 @@ if [[ "$branch" =~ ^([0-9]+)- ]]; then
   exit 0
 fi
 
-if [[ "$subject" =~ ^#[0-9]+:\  ]]; then
+if [[ "$subject" =~ ^#[0-9]+:[[:space:]]+ ]]; then
   exit 0
 fi
 
