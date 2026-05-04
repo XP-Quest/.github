@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# commit-msg hook: enforce issue-driven commit subject format.
+#
+# Rule (see SR_ED_CONVENTIONS.md "Issue-driven commit workflow"):
+#   - On a branch matching <issue>-<slug>, the subject must start with
+#     "#<issue>: ". The hook auto-prepends if missing, errors if it
+#     references a different issue.
+#   - On any other branch, the subject must already start with "#NN: "
+#     (no auto-derivation possible).
+#
+# Skipped during merge and rebase operations, and in detached HEAD.
+#
+# Installed via xpq-org/scripts/install-hooks.sh.
+set -euo pipefail
+
+msg_file="$1"
+git_dir=$(git rev-parse --git-dir)
+
+if [[ -f "$git_dir/MERGE_HEAD" ]] || [[ -d "$git_dir/rebase-merge" ]] || [[ -d "$git_dir/rebase-apply" ]]; then
+  exit 0
+fi
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+[[ -z "$branch" ]] && exit 0
+
+# Subject = first non-empty, non-comment line. Honors core.commentChar so
+# that "#NN: subject" is treated as a real subject (the install script sets
+# core.commentChar to ';' so '#' lines survive git's cleanup pass).
+comment_char=$(git config --get core.commentChar 2>/dev/null || echo '#')
+lineno=$(awk -v cc="$comment_char" '!/^$/ && substr($0,1,1) != cc { print NR; exit }' "$msg_file")
+[[ -z "$lineno" ]] && exit 0
+subject=$(sed -n "${lineno}p" "$msg_file")
+
+if [[ "$branch" =~ ^([0-9]+)- ]]; then
+  branch_issue="${BASH_REMATCH[1]}"
+
+  if [[ "$subject" =~ ^#${branch_issue}:\  ]]; then
+    exit 0
+  fi
+
+  if [[ "$subject" =~ ^#([0-9]+):\  ]]; then
+    msg_issue="${BASH_REMATCH[1]}"
+    echo "commit-msg: subject references #${msg_issue} but branch is for #${branch_issue}." >&2
+    echo "  branch:  $branch" >&2
+    echo "  subject: $subject" >&2
+    echo "Fix the subject or check out the right branch." >&2
+    exit 1
+  fi
+
+  sed -i "${lineno}s|^|#${branch_issue}: |" "$msg_file"
+  echo "commit-msg: auto-prepended '#${branch_issue}: ' to subject." >&2
+  exit 0
+fi
+
+if [[ "$subject" =~ ^#[0-9]+:\  ]]; then
+  exit 0
+fi
+
+echo "commit-msg: branch '$branch' does not match <issue>-<slug> format." >&2
+echo "  Either check out a feature branch (git checkout -b <issue>-<slug>)" >&2
+echo "  or prefix the subject with '#<issue>: '." >&2
+echo "See SR_ED_CONVENTIONS.md 'Issue-driven commit workflow'." >&2
+exit 1
