@@ -123,7 +123,7 @@ Two GitHub Projects at the org level:
 1. **R&D / AI Engine** — all SR&ED research and experiment issues. Custom fields: Uncertainty (WP1–WP6), Phase.
 2. **Product & Platform** — non-SR&ED engineering. Custom fields: Area, Priority.
 
-## Before filing a research issue, ask youxpquestlf
+## Before filing a research issue, ask yourself
 
 1. Is there a real technological uncertainty here that a skilled practitioner couldn't resolve with existing knowledge and routine effort? If no, file it as an Engineering Task instead.
 2. Can I state a hypothesis that could be falsified? If no, keep thinking before filing.
