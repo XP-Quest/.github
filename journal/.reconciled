@@ -1,0 +1,11 @@
+# Reconciled commit SHAs (Layer 3 skip list).
+#
+# Format: one short SHA per line, optionally followed by whitespace and a
+# free-form note. Lines starting with '#' and blank lines are ignored.
+#
+# Append a SHA here to suppress it from daily_git_summary.sh's "(untracked)"
+# section. The reconcile_commit.sh helper appends to this file automatically
+# after posting the verbose comment to the matching GitHub issue.
+#
+# Do not remove entries — once reconciled, the audit trail lives in the
+# referenced issue's comment thread.
