@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Mock gh binary used in bats tests.
+# Handles the subset of gh commands exercised by the scripts under test.
+#
+# Supported invocations:
+#   gh issue view <N> --repo <R> --json title --jq .title  → prints a fake title
+#   gh issue comment <N> --repo <R> --body <B>             → exits 0 silently
+
+case "${1:-} ${2:-}" in
+  "issue view")
+    echo "Mock Issue Title"
+    ;;
+  "issue comment")
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
