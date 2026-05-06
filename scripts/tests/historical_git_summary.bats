@@ -38,6 +38,7 @@ STUB
   export SEARCH_ROOT="$TEST_DIR/repos"
   export OUTPUT_DIR="$TEST_DIR/output"
   export RECONCILED_FILE="$TEST_DIR/.reconciled"
+  export DAILY_LOG_CHECKPOINT="$TEST_DIR/.checkpoint"
   mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR"
   touch "$RECONCILED_FILE"
 }
@@ -149,11 +150,10 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# --to defaults to today
+# --to defaults to yesterday
 # ---------------------------------------------------------------------------
 
-@test "omitting --to defaults to today (script completes without error)" {
-  # Use today's date as both --from and implied --to.
+@test "omitting --to defaults to yesterday (script completes without error)" {
   today=$(date +%Y-%m-%d)
   run bash "$SCRIPT" --from "$today"
 
