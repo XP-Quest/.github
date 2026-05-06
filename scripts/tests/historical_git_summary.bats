@@ -150,7 +150,7 @@ teardown() {
 }
 
 # ---------------------------------------------------------------------------
-# --to defaults to today
+# --to defaults to yesterday
 # ---------------------------------------------------------------------------
 
 @test "omitting --to defaults to yesterday (script completes without error)" {

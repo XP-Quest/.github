@@ -17,13 +17,13 @@ cmd=$(printf '%s' "$input" \
 if printf '%s' "$cmd" | grep -qE 'git (checkout -b|switch -c) [0-9]+-'; then
   branch=$(printf '%s' "$cmd" | grep -oE '[0-9]+-[a-zA-Z0-9_-]+' | head -1)
   issue=$(printf '%s' "$branch" | grep -oE '^[0-9]+')
-  printf '{"systemMessage": "⏱  Start time tracking for issue #%s:\n   xpq-org/scripts/xpq-time.sh start %s"}\n' \
+  printf '{"systemMessage": "⏱  Start time tracking for issue #%s:\\n   xpq-org/scripts/xpq-time.sh start %s"}\n' \
     "$issue" "$issue"
   exit 0
 fi
 
 # PR creation
 if printf '%s' "$cmd" | grep -qE '^gh pr create'; then
-  printf '{"systemMessage": "⏱  Stop time tracking before merging:\n   xpq-org/scripts/xpq-time.sh stop"}\n'
+  printf '{"systemMessage": "⏱  Stop time tracking before merging:\\n   xpq-org/scripts/xpq-time.sh stop"}\n'
   exit 0
 fi

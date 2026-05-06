@@ -19,8 +19,9 @@ TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if ! command -v bats >/dev/null 2>&1; then
   echo "Error: bats is not installed." >&2
-  echo "Install it with: sudo apt-get install bats" >&2
+  echo "Install it with: sudo apt-get install bats-core" >&2
   echo "            or:  brew install bats-core" >&2
+  echo "Note: bats-core >= 1.5.0 is required (for 'run !' negation syntax)." >&2
   exit 1
 fi
 

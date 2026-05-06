@@ -30,7 +30,7 @@ Commands:
 
 Options:
   --repo ORG/REPO   GitHub repo for issue lookup (e.g. XP-Quest/xpq-api).
-                    Auto-detected from issue labels when omitted.
+                    Auto-detects wp<N> label from the issue via gh.
   -h, --help        Show this help message
 
 Time log: $TIME_LOG
@@ -52,7 +52,8 @@ cmd_start() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --repo) repo="${2:-}"; shift 2 ;;
+      --repo) [[ $# -lt 2 || -z "${2:-}" ]] && { echo "Error: --repo requires a value." >&2; exit 1; }
+              repo="$2"; shift 2 ;;
       -h|--help) usage; exit 0 ;;
       -*) echo "Unknown option: $1" >&2; exit 1 ;;
       *)  if [[ -z "$issue" ]]; then
@@ -83,8 +84,6 @@ cmd_start() {
 
   local now
   now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-  local date_part
-  date_part=$(date -d "$now" +%Y-%m-%d)
 
   mkdir -p "$JOURNAL_DIR"
   printf '%s\t%s\t%s\t%s\t%s\n' "$now" "start" "$issue" "${repo:-}" "$wp" > "$ACTIVE_FILE"
@@ -117,7 +116,7 @@ cmd_stop() {
   hours=$(awk "BEGIN { printf \"%.2f\", $elapsed_min / 60 }")
 
   local date_part
-  date_part=$(date -d "$start_ts" +%Y-%m-%d)
+  date_part=$(date -u -d "$start_ts" +%Y-%m-%d)
 
   mkdir -p "$JOURNAL_DIR"
   if [[ ! -f "$TIME_LOG" ]]; then

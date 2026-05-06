@@ -38,5 +38,5 @@ if [[ "$branch" =~ ^[0-9]+-[a-zA-Z0-9_-]+ ]]; then
 fi
 
 repo_name=$(basename "$git_root")
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Branch '\''%s'\'' in %s is not an issue branch. Switch to a branch named <N>-<slug> before editing files.\n\nTo create one:\n  gh issue create   # or use an existing issue number\n  git checkout -b <N>-<slug>"}}\n' \
+printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Branch '\''%s'\'' in %s is not an issue branch. Switch to a branch named <N>-<slug> before editing files.\\n\\nTo create one:\\n  gh issue create   # or use an existing issue number\\n  git checkout -b <N>-<slug>"}}\n' \
   "$branch" "$repo_name"

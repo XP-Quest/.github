@@ -55,9 +55,14 @@ if [[ -f "$TIME_LOG" ]]; then
   while IFS=$'\t' read -r row_date issue repo wp start stop hours; do
     row_epoch=$(date -d "$row_date" +%s 2>/dev/null) || continue
     [[ "$row_epoch" -ne "$target_epoch" ]] && continue
-    fmt_start=$(date -d "$start" +%H:%M 2>/dev/null || echo "?")
-    fmt_stop=$(date -d "$stop"  +%H:%M 2>/dev/null || echo "?")
-    time_log["$issue"]="${hours}h (${fmt_start}–${fmt_stop} UTC)${wp:+ [${wp}]}"
+    fmt_start=$(date -u -d "$start" +%H:%M 2>/dev/null || echo "?")
+    fmt_stop=$(date -u -d "$stop"  +%H:%M 2>/dev/null || echo "?")
+    entry="${hours}h (${fmt_start}–${fmt_stop} UTC)${wp:+ [${wp}]}"
+    if [[ -n "${time_log[$issue]+_}" ]]; then
+      time_log["$issue"]+=" + ${entry}"
+    else
+      time_log["$issue"]="$entry"
+    fi
   done < "$TIME_LOG"
 fi
 
