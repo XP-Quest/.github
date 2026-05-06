@@ -1,6 +1,6 @@
 ---
 name: xpquest-daily-log
-description: Generate XP Quest daily_log and sred_daily_log for a given date by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] (defaults to yesterday).
+description: Generate XP Quest daily_log and sred_daily_log by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or /xpquest-daily-log --from YYYY-MM-DD [--to YYYY-MM-DD] for a range. Always writes/overwrites — use xpquest-backfill-logs to skip already-complete dates.
 ---
 
 Generate `daily_log-<DATE>.md` (complete development record) and `sred_daily_log-<DATE>.md`
@@ -15,23 +15,50 @@ a section is always better than inventing it. This is especially critical in SR&
 
 ---
 
-## Step 1: Resolve date
+## Step 1: Resolve date or date range
 
-If an argument was provided to the skill, use it as DATE (YYYY-MM-DD). Otherwise:
+Parse arguments:
+
+| Form | Meaning |
+| --- | --- |
+| _(no args)_ | Single date: yesterday |
+| `YYYY-MM-DD` (positional) | Single date: that date |
+| `--from DATE` | Range start (inclusive); `--to` defaults to yesterday |
+| `--to DATE` | Range end (inclusive); `--from` defaults to `--to` (single date) |
+| `--from DATE --to DATE` | Explicit range |
+
+Resolve dates:
 ```bash
-date -d yesterday +%Y-%m-%d
+# default FROM and TO
+FROM=$(date -d yesterday +%Y-%m-%d)
+TO=$(date -d yesterday +%Y-%m-%d)
+# override from parsed args, then normalise with GNU date for flexible formats
+FROM=$(date -d "$FROM" +%Y-%m-%d)
+TO=$(date -d "$TO"   +%Y-%m-%d)
 ```
 
-Set:
+Validate: if FROM is after TO, stop with an error.
+
+Generate the list of dates to process (inclusive):
+```bash
+current="$FROM"
+while [[ $(date -d "$current" +%s) -le $(date -d "$TO" +%s) ]]; do
+  echo "$current"
+  current=$(date -d "$current + 1 day" +%Y-%m-%d)
+done
 ```
-DATE=<resolved date>
+
+For each DATE in the list, execute Steps 2–9 below. When processing more than one date,
+print `=== Processing DATE ===` before each. Always write/overwrite — this skill does not
+skip already-complete logs (use `/xpquest-backfill-logs` if you want skip behaviour).
+
+Set per-date paths:
+
+```text
 DAILY_LOG="/home/rcoe/xpquest/xpq-project/Daily Logs/daily_log-${DATE}.md"
 SRED_LOG="/home/rcoe/xpquest/xpq-project/Daily Logs/sred_daily_log-${DATE}.md"
 GITHUB_SUMMARY="/home/rcoe/xpquest/xpq-project/Daily Logs/github_summary-${DATE}.md"
 ```
-
-If `$DAILY_LOG` already exists AND does not contain the string `"Session transcripts not included"`,
-it was already enriched by this skill — print "daily_log already complete for ${DATE}" and stop.
 
 ---
 

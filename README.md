@@ -82,14 +82,20 @@ timestamp is contemporaneous evidence of when the work was performed.
 
 ### 5. The daily log is generated
 
-At the end of each day (or as a backfill), two commands produce the development record:
+At the end of each day (or as a backfill), two steps produce the development record:
+
+**Step 1 — run in a terminal** to extract commits from all repos, grouped by issue:
 
 ```bash
-# Step 1 — extract commits from all repos, grouped by issue
 bash xpq-org/scripts/daily_git_summary.sh 2026-05-05
+```
 
-# Step 2 — enrich with session context, extract SR&ED audit log
+**Step 2 — run inside a Claude Code session** (not the terminal) using the `/xpquest-daily-log`
+slash command, which is a Claude Code skill, not a shell script:
+
+```text
 /xpquest-daily-log 2026-05-05
+/xpquest-daily-log --from 2026-04-21 --to 2026-05-05
 ```
 
 Step 1 produces `github_summary-DATE.md` (structured commit data).
@@ -241,13 +247,30 @@ Both are registered in `~/.claude/settings.json` and apply to all repos under `~
 
 ## Claude Code skills
 
-Skills are defined in `skills/` and symlinked into `~/.claude/skills/` for discovery.
+Skills are defined in `skills/` and wired into `~/.claude/skills/` for discovery.
+Each skill requires a subdirectory named after the command containing a `SKILL.md` file:
+
+```text
+~/.claude/skills/
+└── xpquest-daily-log/
+    └── SKILL.md  →  ~/xpquest/xpq-org/skills/xpquest-daily-log.md  (symlink)
+```
+
+To set up after cloning:
+
+```bash
+mkdir -p ~/.claude/skills/xpquest-daily-log ~/.claude/skills/xpquest-backfill-logs
+ln -s ~/xpquest/xpq-org/skills/xpquest-daily-log.md    ~/.claude/skills/xpquest-daily-log/SKILL.md
+ln -s ~/xpquest/xpq-org/skills/xpquest-backfill-logs.md ~/.claude/skills/xpquest-backfill-logs/SKILL.md
+```
+
 Invoke from within a Claude Code session:
 
 | Command | What it does |
 | --- | --- |
-| `/xpquest-daily-log [DATE]` | Generate `daily_log` and `sred_daily_log` for one date (default: yesterday) |
-| `/xpquest-backfill-logs [--from DATE] [--to DATE]` | Generate logs for a date range, resuming from checkpoint |
+| `/xpquest-daily-log [DATE]` | One date (default: yesterday). Always writes/overwrites. |
+| `/xpquest-daily-log --from DATE [--to DATE]` | Date range. Always writes/overwrites. |
+| `/xpquest-backfill-logs [--from DATE] [--to DATE]` | Date range, skips already-complete logs, resumes from checkpoint. |
 
 Both skills read the bash-generated `github_summary` as structured input, augment it with
 `gh issue view` body content (the PM/architecture "why"), read Claude Code session JSONL
