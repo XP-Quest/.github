@@ -16,8 +16,7 @@ Options:
   --from DATE         Start date (inclusive). Defaults to checkpoint date if omitted.
   --to DATE           End date (inclusive). Defaults to yesterday.
   --checkpoint FILE   Path to checkpoint file (default: journal/.daily-log-checkpoint).
-                      Stores the last-run date; updated to today on completion when
-                      --from was not specified explicitly.
+                      Stores the last-run date; always updated to today on completion.
                       Override via env: DAILY_LOG_CHECKPOINT
   -h, --help          Show this help message
 
@@ -94,10 +93,7 @@ while [[ $(date -d "$current" +%s) -le $(date -d "$TO" +%s) ]]; do
   current=$(date -d "$current + 1 day" +%Y-%m-%d)
 done
 
-# Update checkpoint to today when running in checkpoint-driven mode.
-if [[ "$EXPLICIT_FROM" == false ]]; then
-  today=$(date +%Y-%m-%d)
-  mkdir -p "$(dirname "$CHECKPOINT")"
-  echo "$today" > "$CHECKPOINT"
-  echo "Checkpoint updated to $today"
-fi
+today=$(date +%Y-%m-%d)
+mkdir -p "$(dirname "$CHECKPOINT")"
+echo "$today" > "$CHECKPOINT"
+echo "Checkpoint updated to $today"
