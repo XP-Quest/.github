@@ -19,12 +19,13 @@ else
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_SEARCH_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+XPQUEST_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd)"
+DEFAULT_SEARCH_ROOT="$XPQUEST_ROOT"
 SEARCH_ROOT="${SEARCH_ROOT:-$DEFAULT_SEARCH_ROOT}"
-OUTPUT_DIR="${OUTPUT_DIR:-${DEFAULT_SEARCH_ROOT}/Daily Logs}"
+OUTPUT_DIR="${OUTPUT_DIR:-${XPQUEST_ROOT}/xpq-project/Daily Logs}"
 OUTPUT_FILE="${OUTPUT_DIR}/github_summary-${TARGET_DATE}.md"
 DAILY_LOG_FILE="${OUTPUT_DIR}/daily_log-${TARGET_DATE}.md"
-MEETINGS_DIR="${MEETINGS_DIR:-/mnt/c/Users/rcoe6/OneDrive/Documents/Claude/Projects/XPQuest/Meetings}"
+MEETINGS_DIR="${MEETINGS_DIR:-${XPQUEST_ROOT}/xpq-project/Meetings}"
 RECONCILED_FILE="${RECONCILED_FILE:-${SEARCH_ROOT}/xpq-org/journal/.reconciled}"
 TIME_LOG="${TIME_LOG:-${SEARCH_ROOT}/xpq-org/journal/.time-log.csv}"
 
