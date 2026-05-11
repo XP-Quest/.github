@@ -16,7 +16,22 @@ d = json.load(sys.stdin)
 print(d.get('tool_input', {}).get('command', ''))
 " 2>/dev/null || true)
 
-if echo "$command" | grep -qE '(^|[[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'; then
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Claude is not permitted to merge PRs autonomously. PRs must be reviewed and merged by you — either on GitHub or by explicitly running the command yourself.\\n\\nBlocked command: %s"}}\n' \
-    "$command"
+# Fixed-string match anywhere in the command — intentionally broad so wrapping
+# (e.g. bash -c "gh pr merge 123") does not bypass the guard.
+if echo "$command" | grep -qF 'gh pr merge'; then
+  python3 -c "
+import sys, json
+cmd = sys.argv[1]
+print(json.dumps({
+    'hookSpecificOutput': {
+        'hookEventName': 'PreToolUse',
+        'permissionDecision': 'deny',
+        'permissionDecisionReason': (
+            'Claude is not permitted to merge PRs autonomously. '
+            'PRs must be reviewed and merged by you — either on GitHub '
+            'or by explicitly running the command yourself.\n\nBlocked command: ' + cmd
+        )
+    }
+}))
+" "$command"
 fi
