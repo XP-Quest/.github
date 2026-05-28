@@ -124,41 +124,52 @@ Cache results by `repo#NN`. Use `first_line` to write "why" context, not just "w
 
 ## Step 5: Read Claude session history for this date
 
-Find session files modified on DATE:
-
-```bash
-find ~/.claude/projects/-home-rcoe-xpquest/ -name "*.jsonl" \
-  -newermt "${DATE} 00:00:00" ! -newermt "${DATE} 23:59:59" | sort
-```
-
-For each file found, extract user messages (pass the session path as `sys.argv[1]`):
+Discover sessions by message-level `timestamp` inside each JSONL — not by file mtime.
+A session started one day and resumed the next would otherwise be misattributed to the
+resume day, silently dropping the original day's content.
 
 ```python
-import json, sys
+import json, glob, os
 
-JSONL_PATH = sys.argv[1]
-sessions = []
-with open(JSONL_PATH) as f:
-    for line in f:
-        try:
-            obj = json.loads(line)
-            if obj.get('type') == 'user':
-                msg = obj.get('message', {})
-                content = msg.get('content', '')
+DATE = "YYYY-MM-DD"  # UTC; matches the leading characters of each entry's `timestamp`
+sessions_by_file = {}
+for path in sorted(glob.glob(os.path.expanduser(
+        "~/.claude/projects/-home-rcoe-xpquest/*.jsonl"))):
+    msgs = []
+    with open(path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line)
+                if not obj.get('timestamp', '').startswith(DATE):
+                    continue
+                if obj.get('type') != 'user':
+                    continue
+                content = obj.get('message', {}).get('content', '')
                 if isinstance(content, list):
-                    text = ' '.join(c.get('text','') for c in content if c.get('type')=='text')
+                    text = ' '.join(c.get('text', '') for c in content if c.get('type') == 'text')
                 else:
                     text = str(content)
                 text = text.strip()
-                if text and len(text) > 20:
-                    sessions.append(text[:300])
-        except:
-            pass
-for s in sessions[:5]:
-    print(s)
+                if text and len(text) > 20 and not text.startswith('<') and not text.startswith('[{'):
+                    msgs.append(text[:400])
+            except Exception:
+                pass
+    if msgs:
+        sessions_by_file[path] = msgs
+for path, msgs in sessions_by_file.items():
+    print(f"--- {path}")
+    for m in msgs[:5]:
+        print(m)
+        print()
 ```
 
-For each session file:
+Notes:
+
+- The `timestamp` field on each line is ISO 8601 UTC. Compare by string prefix against `YYYY-MM-DD`.
+- One JSONL may contribute to multiple daily logs (sessions that span midnight UTC, or sessions resumed across days). That's correct — emit per-date bullets independently.
+- The `< … >` / `[{ … }]` filters drop system-injected tool-result and hook envelopes from the human-message stream.
+
+For each session file with matching messages:
 
 - Skip sessions with no XP Quest content (no references to xpq-*, WP1-6, SR&ED, the product, or XPQ tooling)
 - For relevant sessions, write one concise bullet summarizing what was worked on
