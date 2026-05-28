@@ -35,10 +35,15 @@ Do not reimplement this logic in the skill.
 Before calling the script, read the effective FROM and TO so you know which dates to iterate:
 
 ```bash
-CHECKPOINT_FILE=/home/rcoe/xpquest/xpq-org/journal/.daily-log-checkpoint
+# Honors DAILY_LOG_CHECKPOINT env var; matches historical_git_summary.sh's default.
+CHECKPOINT_FILE="${DAILY_LOG_CHECKPOINT:-/home/rcoe/xpquest/xpq-org/journal/.daily-log-checkpoint}"
 FROM=$(cat "$CHECKPOINT_FILE" 2>/dev/null || echo "")   # overridden by --from if supplied
 TO=$(date -d yesterday +%Y-%m-%d)                        # overridden by --to if supplied
 ```
+
+If the user passes `--checkpoint PATH` to the skill, set `CHECKPOINT_FILE=PATH` before reading
+and forward the same flag to `historical_git_summary.sh` so the script's FROM matches the
+pre-read.
 
 If FROM is empty (no checkpoint) and `--from` was not supplied, do not call the script yet.
 Ask the user to pick a start date with the message:
@@ -85,8 +90,12 @@ GITHUB_SUMMARY="/home/rcoe/xpquest/xpq-project/Daily Logs/github_summary-${DATE}
 For each DATE, check whether enrichment is needed before doing any Claude work:
 
 - Skip if `daily_log-DATE.md` exists **and** does not contain `"Session transcripts not included"`
-  — it has already been enriched; mark as `exists` and move on.
-- Proceed if the file is missing or contains that marker (bash-only draft).
+  **and** (no SR&ED content was classified for this date OR `sred_daily_log-DATE.md` exists) —
+  it has been enriched; mark as `exists` and move on.
+- Proceed if the daily log is missing, contains the bash-only-draft marker, or contains
+  SR&ED-eligible content but the companion `sred_daily_log-DATE.md` is missing. The last case
+  catches dates that were enriched before SR&ED extraction was implemented or where the
+  SR&ED log was deleted to force regeneration.
 
 Print `=== Processing DATE ===` before each date that requires enrichment.
 
@@ -295,4 +304,4 @@ Sessions:   N found, M relevant
 Commits:    N tracked, M SR&ED
 ```
 
-The checkpoint was already updated to today by `daily_log_range.sh` in Step 1.
+The checkpoint was already updated to today by `historical_git_summary.sh` in Step 1.
