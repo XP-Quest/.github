@@ -131,11 +131,12 @@ find ~/.claude/projects/-home-rcoe-xpquest/ -name "*.jsonl" \
   -newermt "${DATE} 00:00:00" ! -newermt "${DATE} 23:59:59" | sort
 ```
 
-For each file found, extract user messages:
+For each file found, extract user messages (pass the session path as `sys.argv[1]`):
 
 ```python
-import json
+import json, sys
 
+JSONL_PATH = sys.argv[1]
 sessions = []
 with open(JSONL_PATH) as f:
     for line in f:
