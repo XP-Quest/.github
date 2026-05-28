@@ -1,13 +1,15 @@
 ---
 name: xpquest-daily-log
-description: Generate XP Quest daily_log and sred_daily_log by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or /xpquest-daily-log --from YYYY-MM-DD [--to YYYY-MM-DD] for a range. Always writes/overwrites — use xpquest-backfill-logs to skip already-complete dates.
+description: Generate XP Quest daily_log and sred_daily_log by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or with [--from DATE] [--to DATE] for a range. Skips dates already enriched; delete the file to force regeneration.
 ---
 
-Generate `daily_log-<DATE>.md` (complete development record) and `sred_daily_log-<DATE>.md`
-(audit-optimized extraction of SR&ED work only) for the given date.
+# xpquest-daily-log
+
+Generate `daily_log-DATE.md` (complete development record) and `sred_daily_log-DATE.md`
+(audit-optimized SR&ED extraction) for the given date or date range.
 
 The daily log covers ALL development — engineering, administration, SR&ED. The SR&ED log is
-not a separate workflow; it is extracted from the same evidence to make CRA auditing simpler.
+an audit-optimized extraction from the same evidence.
 
 **Anti-hallucination rule:** Populate only from actual evidence. Use `[fill in]` for qualitative
 SR&ED fields that cannot be derived from commits, issue bodies, or session content. Omitting
@@ -15,44 +17,60 @@ a section is always better than inventing it. This is especially critical in SR&
 
 ---
 
-## Step 1: Resolve date or date range
+## Step 1: Generate git summaries via bash
 
-Parse arguments:
+The bash script handles date range resolution, git history gathering, and checkpoint management.
+Do not reimplement this logic in the skill.
+
+**Argument forms:**
 
 | Form | Meaning |
 | --- | --- |
-| _(no args)_ | Single date: yesterday |
-| `YYYY-MM-DD` (positional) | Single date: that date |
-| `--from DATE` | Range start (inclusive); `--to` defaults to yesterday |
-| `--to DATE` | Range end (inclusive); `--from` defaults to `--to` (single date) |
-| `--from DATE --to DATE` | Explicit range |
+| _(no args)_ | `[checkpoint, yesterday]` inclusive — requires a checkpoint file |
+| `YYYY-MM-DD` | Single date |
+| `--to DATE` | `[checkpoint, DATE]` inclusive |
+| `--from DATE` | `[DATE, yesterday]` inclusive |
+| `--from DATE --to DATE` | Explicit inclusive range |
 
-Resolve dates:
+Before calling the script, read the effective FROM and TO so you know which dates to iterate:
+
 ```bash
-# default FROM and TO
-FROM=$(date -d yesterday +%Y-%m-%d)
-TO=$(date -d yesterday +%Y-%m-%d)
-# override from parsed args, then normalise with GNU date for flexible formats
-FROM=$(date -d "$FROM" +%Y-%m-%d)
-TO=$(date -d "$TO"   +%Y-%m-%d)
+CHECKPOINT_FILE=/home/rcoe/xpquest/xpq-org/journal/.daily-log-checkpoint
+FROM=$(cat "$CHECKPOINT_FILE" 2>/dev/null || echo "")   # overridden by --from if supplied
+TO=$(date -d yesterday +%Y-%m-%d)                        # overridden by --to if supplied
 ```
 
-Validate: if FROM is after TO, stop with an error.
+If FROM is empty (no checkpoint) and `--from` was not supplied, do not call the script yet.
+Ask the user to pick a start date with the message:
 
-Generate the list of dates to process (inclusive):
-```bash
-current="$FROM"
-while [[ $(date -d "$current" +%s) -le $(date -d "$TO" +%s) ]]; do
-  echo "$current"
-  current=$(date -d "$current + 1 day" +%Y-%m-%d)
-done
+```text
+No checkpoint found. Where would you like to start?
+  1. Last week
+  2. Yesterday
+  3. Other — enter a date (YYYY-MM-DD or any expression accepted by GNU date)
 ```
 
-For each DATE in the list, execute Steps 2–9 below. When processing more than one date,
-print `=== Processing DATE ===` before each. Always write/overwrite — this skill does not
-skip already-complete logs (use `/xpquest-backfill-logs` if you want skip behaviour).
+Resolve the selection to a date string, set `--from` to that value, and proceed.
 
-Set per-date paths:
+Call the bash script, passing any arguments through:
+
+```bash
+# no args, or --from/--to flags:
+bash /home/rcoe/xpquest/xpq-org/scripts/historical_git_summary.sh [--from DATE] [--to DATE]
+
+# single positional date — call the per-date script directly:
+bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh DATE
+```
+
+`historical_git_summary.sh`:
+
+- Reads `journal/.daily-log-checkpoint` for the default FROM when `--from` is not supplied
+- Calls `daily_git_summary.sh DATE` for each date, writing `github_summary-DATE.md` and a
+  starter `daily_log-DATE.md` (marked `Session transcripts not included`)
+- Updates the checkpoint to **today** (the run date) on completion
+- Errors if no checkpoint exists and `--from` was not supplied
+
+Use the FROM/TO values captured before the call to build the iteration list. Set per-date paths:
 
 ```text
 DAILY_LOG="/home/rcoe/xpquest/xpq-project/Daily Logs/daily_log-${DATE}.md"
@@ -62,46 +80,52 @@ GITHUB_SUMMARY="/home/rcoe/xpquest/xpq-project/Daily Logs/github_summary-${DATE}
 
 ---
 
-## Step 2: Load or generate git summary
+## Step 2: Check enrichment status
 
-Check whether `$GITHUB_SUMMARY` exists.
+For each DATE, check whether enrichment is needed before doing any Claude work:
 
-If missing, generate it:
-```bash
-bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh "$DATE"
-```
+- Skip if `daily_log-DATE.md` exists **and** does not contain `"Session transcripts not included"`
+  — it has already been enriched; mark as `exists` and move on.
+- Proceed if the file is missing or contains that marker (bash-only draft).
 
-Re-check. If still missing, there are no commits for this date. Proceed without commit data
-(session and meeting content alone may still warrant a log).
+Print `=== Processing DATE ===` before each date that requires enrichment.
 
 ---
 
-## Step 3: Fetch issue context (PM/architecture narrative)
+## Step 3: Read git summary
 
-For each GitHub issue reference `#NN` found in `$GITHUB_SUMMARY`, extract the issue body
-to understand the purpose and architectural context:
+Read `$GITHUB_SUMMARY`. If the file does not exist, there were no commits for this date;
+proceed without commit data (session and meeting content alone may still warrant a log).
+
+---
+
+## Step 4: Fetch issue context (PM/architecture narrative)
+
+For each GitHub issue reference `#NN` found in `$GITHUB_SUMMARY`, extract the issue body:
+
 ```bash
 gh issue view <NN> --repo XP-Quest/<repo> \
   --json title,body,labels \
   --jq '{title:.title, first_line:(.body//""|split("\n")|map(select(length>2))|first//""), labels:[.labels[].name]}'
 ```
 
-Cache results by `repo#NN`. The `first_line` gives the hypothesis or description behind the commit.
-Use it to write "why" context in the daily log, not just "what".
+Cache results by `repo#NN`. Use `first_line` to write "why" context, not just "what".
 
 ---
 
-## Step 4: Read Claude session history for this date
+## Step 5: Read Claude session history for this date
 
 Find session files modified on DATE:
+
 ```bash
 find ~/.claude/projects/-home-rcoe-xpquest/ -name "*.jsonl" \
   -newermt "${DATE} 00:00:00" ! -newermt "${DATE} 23:59:59" | sort
 ```
 
-For each file found, extract user messages (the prompts describe what was being worked on):
+For each file found, extract user messages:
+
 ```python
-import json, sys
+import json
 
 sessions = []
 with open(JSONL_PATH) as f:
@@ -120,44 +144,39 @@ with open(JSONL_PATH) as f:
                     sessions.append(text[:300])
         except:
             pass
-# Print first 5 user messages to understand session topic
 for s in sessions[:5]:
     print(s)
 ```
 
 For each session file:
-- Read user messages to determine the session topic
+
 - Skip sessions with no XP Quest content (no references to xpq-*, WP1-6, SR&ED, the product, or XPQ tooling)
 - For relevant sessions, write one concise bullet summarizing what was worked on
-- Classify each session as: Engineering / R&D | Administration | Accounting / Legal / Consulting
+- Classify each as: Engineering / R&D | Administration | Accounting / Legal / Consulting
 
 ---
 
-## Step 5: Read meeting notes
+## Step 6: Read meeting notes
 
 Glob: `/home/rcoe/xpquest/xpq-project/Meetings/${DATE}-*.md`
 
-Read each. Extract frontmatter fields: `category`, `attendees`, `topic`.
-If no Meetings directory or no files for this date, skip.
+Read each. Extract frontmatter fields: `category`, `attendees`, `topic`. Skip if none found.
 
 ---
 
-## Step 6: Read time log
+## Step 7: Read time log
 
 ```bash
 grep "^${DATE}" /home/rcoe/xpquest/xpq-org/journal/.time-log.csv 2>/dev/null || true
 ```
 
-Format: `date\tissue\trepo\twp\tstart\tstop\thours`
-
-Collect any matching rows — used to populate "Hours Logged" in SR&ED entries.
+Format: `date\tissue\trepo\twp\tstart\tstop\thours` — used to populate "Hours Logged" in SR&ED entries.
 
 ---
 
-## Step 7: Classify SR&ED content
+## Step 8: Classify SR&ED content
 
-Apply this WP classification to ALL content (commit messages, issue bodies, session bullets)
-using keyword matching. Work matching any WP is SR&ED; all other engineering is non-SR&ED.
+Apply WP classification to all content (commits, issue bodies, session bullets):
 
 | WP  | Title                                   | Keywords                                                             |
 |-----|-----------------------------------------|----------------------------------------------------------------------|
@@ -170,81 +189,77 @@ using keyword matching. Work matching any WP is SR&ED; all other engineering is 
 
 ---
 
-## Step 8: Write daily_log-<DATE>.md
+## Step 9: Write daily_log-DATE.md
 
-If zero content across all sections (no commits, no sessions, no meetings) → print
-"Nothing to log for ${DATE}" and stop. Do not write any file.
+If zero content (no commits, no sessions, no meetings) → print "Nothing to log for DATE" and skip.
 
 Otherwise write `$DAILY_LOG`:
 
-```
-# XP Quest — Daily Log — <DATE>
+```markdown
+# XP Quest — Daily Log — DATE
 
-**Summary:** <one paragraph — synthesize the day's focus from actual evidence: commits,
-issue context, sessions, meetings. Write only what the evidence supports. Do not pad.>
+**Summary:** one paragraph synthesizing the day's focus from actual evidence only.
 
 ## Engineering / R&D
 
-- **<repo>** [#NN: <issue title>](<github-url>)
-  <first_line of issue body as PM context — the "why">
-  - `<sha>`: <commit message>
-  - <session bullet if this issue was also discussed in a session>
-
-- <session bullet for engineering work not tied to a specific commit>
+- **repo** [#NN: issue title](github-url)
+  first_line of issue body — the "why"
+  - `sha`: commit message
+  - session bullet if this issue was also discussed in a session
 
 ## SR&ED Activity
 
-_SR&ED work logged — see `sred_daily_log-<DATE>.md` for detail._
+_SR&ED work logged — see sred_daily_log-DATE.md for detail._
 
-- **WP<N>** (<WP title>): <brief pointer to what was touched, e.g. "chunker threshold experiment">
+- **WPN** (WP title): brief pointer to what was touched
 
 ## Administration
 
-- <admin session bullet>
+- admin session bullet
 
 ## Accounting / Legal / Consulting
 
-- Met with <attendees> re: <topic> [<category>]
+- Met with attendees re: topic [category]
 
 ---
-*Generated by xpquest-daily-log — <DATE>*
+*Generated by xpquest-daily-log — DATE*
 ```
 
 Rules:
+
 - Omit any section with no evidence
-- Omit SR&ED Activity section if no SR&ED work found
-- Group commits under their issue, not repo; use issue link as the heading
-- Use issue first_line to explain purpose (the PM/architecture "why"), not just the commit message
+- Group commits under their issue; use issue first_line as the "why"
 - Do NOT include any GitHub PAT or credential
 
 Save with Write tool.
 
 ---
 
-## Step 9: Write sred_daily_log-<DATE>.md
+## Step 10: Write sred_daily_log-DATE.md
 
-If no SR&ED content was found across all sources → skip, do not write file.
+Skip if no SR&ED content found.
 
-Otherwise write `$SRED_LOG`. Group by WP; separate multiple WP blocks with `---`.
+Otherwise write `$SRED_LOG`, grouping by WP with `---` between blocks:
 
-```
-# XP Quest — SR&ED Daily Log — <DATE>
+```markdown
+# XP Quest — SR&ED Daily Log — DATE
 
-### <DATE> — <one-line focus derived only from evidence>
+### DATE — one-line focus derived from evidence
 
-**Hours Logged:** <from time log if present, else [fill in]>
-**Work Category:** <Software Development | System Design | Algorithm Research | Testing & Validation | Documentation of R&D — infer from evidence; use [fill in] if unclear>
-**Work Package:** WP<N> — <WP title from table above>
+**Hours Logged:** from time log, else [fill in]
+**Work Category:** Software Development | System Design | Algorithm Research | Testing & Validation | Documentation of R&D
+**Work Package:** WPN — WP title
 
 **Technological Uncertainty:**
-[fill in — if issue body contains a hypothesis or uncertainty statement, quote it here]
+[fill in]
 
 **Hypothesis:**
-[fill in — use issue body hypothesis field if present; otherwise [fill in]]
+[fill in]
 
 **Work Performed:**
-- **<repo>** `<sha>`: <commit message>
-- <session bullet if applicable>
+
+- **repo** `sha`: commit message
+- session bullet if applicable
 
 **Outcome / Result:**
 [fill in]
@@ -253,27 +268,31 @@ Otherwise write `$SRED_LOG`. Group by WP; separate multiple WP blocks with `---`
 [fill in]
 
 **Supporting Evidence:**
-- GitHub: `<sha>` — [#NN](<url>) <repo> — <commit message>
-- Time log: <hours, start–stop UTC if present>
+
+- GitHub: `sha` — [#NN](url) repo — commit message
+- Time log: hours, start–stop UTC if present
 ```
 
 Rules:
-- `[fill in]` for ALL qualitative fields (Uncertainty, Hypothesis, Outcome, Advancement)
-- Work Performed and Supporting Evidence: populate ONLY from actual commits and session content
-- Do not invent narrative — CRA will compare this against git history
+
+- `[fill in]` for ALL qualitative fields — do not invent narrative
+- Work Performed and Supporting Evidence: actual commits and session content only
 - Do NOT include any GitHub PAT or credential
 
 Save with Write tool.
 
 ---
 
-## Step 10: Report
+## Step 11: Report
 
-Print:
+Print per date:
+
+```text
+Date:       DATE
+Daily log:  created | enriched | skipped (no content) | exists (already enriched) — path
+SR&ED log:  created | skipped (no SR&ED content) | exists — path
+Sessions:   N found, M relevant
+Commits:    N tracked, M SR&ED
 ```
-Date:       <DATE>
-Daily log:  <created | enriched (replaced bash draft) | skipped (no content)> — <path>
-SR&ED log:  <created | skipped (no SR&ED content)> — <path>
-Sessions:   <N session file(s) found, M relevant>
-Commits:    <N tracked, M SR&ED>
-```
+
+The checkpoint was already updated to today by `daily_log_range.sh` in Step 1.
