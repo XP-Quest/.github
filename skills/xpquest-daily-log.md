@@ -1,15 +1,22 @@
 ---
 name: xpquest-daily-log
-description: Generate XP Quest daily_log and sred_daily_log by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or with [--from DATE] [--to DATE] for a range. Skips dates already enriched; delete the file to force regeneration.
+description: Generate XP Quest daily_log and sred_daily_log (and, when the Time Tracker shows client work, a per-client client_daily_log) by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or with [--from DATE] [--to DATE] for a range. Skips dates already enriched; delete the file to force regeneration.
 ---
 
 # xpquest-daily-log
 
-Generate `daily_log-DATE.md` (complete development record) and `sred_daily_log-DATE.md`
-(audit-optimized SR&ED extraction) for the given date or date range.
+Generate `daily_log-DATE.md` (complete development record), `sred_daily_log-DATE.md`
+(audit-optimized SR&ED extraction), and — when the Time Tracker shows client work —
+`client_daily_log-DATE.md` under a per-client subfolder, for the given date or date range.
 
-The daily log covers ALL development — engineering, administration, SR&ED. The SR&ED log is
-an audit-optimized extraction from the same evidence.
+The daily log covers ALL XP Quest development — engineering, administration, SR&ED. The SR&ED
+log is an audit-optimized extraction from the same evidence. Client work is NOT XP Quest R&D:
+it never appears in the daily or SR&ED logs and is written to a separate per-client log.
+
+Tracked hours come from the XP Quest Time Tracker widget's Daily Summary, which
+`daily_git_summary.sh` already folds into each day's `github_summary` as a prettified,
+workstream-grouped `## Time Tracking` block (`xpq-eng*` → engineering, `xpq-sred*` → SR&ED,
+anything else → client). This skill reads that block — it never parses the raw JSON (see Step 8).
 
 **Anti-hallucination rule:** Populate only from actual evidence. Use `[fill in]` for qualitative
 SR&ED fields that cannot be derived from commits, issue bodies, or session content. Omitting
@@ -78,9 +85,12 @@ bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh DATE
 Use the FROM/TO values captured before the call to build the iteration list. Set per-date paths:
 
 ```text
-DAILY_LOG="/home/rcoe/xpquest/xpq-project/Daily Logs/daily_log-${DATE}.md"
-SRED_LOG="/home/rcoe/xpquest/xpq-project/Daily Logs/sred_daily_log-${DATE}.md"
-GITHUB_SUMMARY="/home/rcoe/xpquest/xpq-project/Daily Logs/github_summary-${DATE}.md"
+LOGS_DIR="/home/rcoe/xpquest/xpq-project/Daily Logs"
+DAILY_LOG="${LOGS_DIR}/daily_log-${DATE}.md"
+SRED_LOG="${LOGS_DIR}/sred_daily_log-${DATE}.md"
+GITHUB_SUMMARY="${LOGS_DIR}/github_summary-${DATE}.md"
+# Client logs live one level down, per client (Step 12):
+#   ${LOGS_DIR}/<Client Name>/client_daily_log-${DATE}.md
 ```
 
 ---
@@ -195,7 +205,32 @@ Format: `date\tissue\trepo\twp\tstart\tstop\thours` — used to populate "Hours 
 
 ---
 
-## Step 8: Classify SR&ED content
+## Step 8: Read Time Tracker hours (from the git summary)
+
+`daily_git_summary.sh` (Step 1) already folds the XP Quest Time Tracker widget's per-project
+hours into `$GITHUB_SUMMARY` as a prettified, workstream-grouped `## Time Tracking` block.
+Read it straight from there — **do not parse any JSON and do not re-resolve the `.xpquest`
+directory; the bash script already did both.**
+
+Extract the `## Time Tracking` section from `$GITHUB_SUMMARY`. If it is absent, the widget
+summary for this date didn't exist — skip this step and fall back to `.time-log.csv` (Step 7)
+alone.
+
+The block is already split into three subsections. Route each one as-is, copying its bullets
+through **verbatim** (each is already human-readable:
+`- **[code] name** — H:MM — description (client)`):
+
+- **`### Engineering / R&D`** → fold into the **Engineering / R&D** section of the daily log (Step 10).
+- **`### SR&ED`** → fold into the SR&ED log's **Work Performed** and roll the hours into
+  **Hours Logged** (Step 11), alongside any `.time-log.csv` rows.
+- **`### Client`** → do NOT put these in the XP Quest daily/SR&ED logs; hold them for the
+  per-client log (Step 12).
+
+The `**Total tracked:**` line is the day's overall tracked hours — use it for the Step 13 report.
+
+---
+
+## Step 9: Classify SR&ED content
 
 Apply WP classification to all content (commits, issue bodies, session bullets):
 
@@ -210,7 +245,7 @@ Apply WP classification to all content (commits, issue bodies, session bullets):
 
 ---
 
-## Step 9: Write daily_log-DATE.md
+## Step 10: Write daily_log-DATE.md
 
 If zero content (no commits, no sessions, no meetings) → print "Nothing to log for DATE" and skip.
 
@@ -256,7 +291,7 @@ Save with Write tool.
 
 ---
 
-## Step 10: Write sred_daily_log-DATE.md
+## Step 11: Write sred_daily_log-DATE.md
 
 Skip if no SR&ED content found.
 
@@ -304,7 +339,44 @@ Save with Write tool.
 
 ---
 
-## Step 11: Report
+## Step 12: Write client_daily_log-DATE.md
+
+Client work is NOT XP Quest R&D and must never appear in the daily or SR&ED logs — it is
+logged separately for billing/record-keeping. Build this from the `### Client` subsection of
+the `## Time Tracking` block (Step 8).
+
+If there is no `### Client` subsection for the date → skip; write nothing.
+
+Otherwise group the client bullets **by client** (the client name in parentheses on each
+bullet; fall back to the code's prefix if absent). Write one file per client, one level under
+`$LOGS_DIR` in a folder named for the client:
+
+```text
+${LOGS_DIR}/<Client Name>/client_daily_log-${DATE}.md
+```
+
+Create the client folder if it does not exist. File contents:
+
+```markdown
+# Client Work — <Client Name> — Daily Log — DATE
+
+- **[code] name** — H:MM
+  description
+```
+
+Rules:
+
+- Populate ONLY from the `### Client` bullets — they already carry code, name, H:MM,
+  description, and client; copy them through, just regrouped under the client folder/heading.
+- Do NOT pull in commits, sessions, or SR&ED narrative — this log is hours + the project's
+  own name/description only.
+- Do NOT include any GitHub PAT or credential.
+
+Save each with the Write tool.
+
+---
+
+## Step 13: Report
 
 Print per date:
 
@@ -312,8 +384,10 @@ Print per date:
 Date:       DATE
 Daily log:  created | enriched | skipped (no content) | exists (already enriched) — path
 SR&ED log:  created | skipped (no SR&ED content) | exists — path
+Client log: created (per client) | skipped (no client work) — path(s)
 Sessions:   N found, M relevant
 Commits:    N tracked, M SR&ED
+Tracker:    Total tracked from the Time Tracking block, or "no time tracked"
 ```
 
 The checkpoint was already updated to today by `historical_git_summary.sh` in Step 1.
