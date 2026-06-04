@@ -16,7 +16,7 @@ it never appears in the daily or SR&ED logs and is written to a separate per-cli
 Tracked hours come from the XP Quest Time Tracker widget's Daily Summary, which
 `daily_git_summary.sh` already folds into each day's `github_summary` as a prettified,
 workstream-grouped `## Time Tracking` block (`xpq-eng*` → engineering, `xpq-sred*` → SR&ED,
-anything else → client). This skill reads that block — it never parses the raw JSON (see Step 8).
+anything else → client). This skill reads that block — it never parses the raw JSON (see Step 7).
 
 **Anti-hallucination rule:** Populate only from actual evidence. Use `[fill in]` for qualitative
 SR&ED fields that cannot be derived from commits, issue bodies, or session content. Omitting
@@ -89,7 +89,7 @@ LOGS_DIR="/home/rcoe/xpquest/xpq-project/Daily Logs"
 DAILY_LOG="${LOGS_DIR}/daily_log-${DATE}.md"
 SRED_LOG="${LOGS_DIR}/sred_daily_log-${DATE}.md"
 GITHUB_SUMMARY="${LOGS_DIR}/github_summary-${DATE}.md"
-# Client logs live one level down, per client (Step 12):
+# Client logs live one level down, per client (Step 11):
 #   ${LOGS_DIR}/<Client Name>/client_daily_log-${DATE}.md
 ```
 
@@ -195,17 +195,7 @@ Read each. Extract frontmatter fields: `category`, `attendees`, `topic`. Skip if
 
 ---
 
-## Step 7: Read time log
-
-```bash
-grep "^${DATE}" /home/rcoe/xpquest/xpq-org/journal/.time-log.csv 2>/dev/null || true
-```
-
-Format: `date\tissue\trepo\twp\tstart\tstop\thours` — used to populate "Hours Logged" in SR&ED entries.
-
----
-
-## Step 8: Read Time Tracker hours (from the git summary)
+## Step 7: Read Time Tracker hours (from the git summary)
 
 `daily_git_summary.sh` (Step 1) already folds the XP Quest Time Tracker widget's per-project
 hours into `$GITHUB_SUMMARY` as a prettified, workstream-grouped `## Time Tracking` block.
@@ -213,24 +203,23 @@ Read it straight from there — **do not parse any JSON and do not re-resolve th
 directory; the bash script already did both.**
 
 Extract the `## Time Tracking` section from `$GITHUB_SUMMARY`. If it is absent, the widget
-summary for this date didn't exist — skip this step and fall back to `.time-log.csv` (Step 7)
-alone.
+summary for this date didn't exist — there are no tracked hours for this date; proceed without them.
 
 The block is already split into three subsections. Route each one as-is, copying its bullets
 through **verbatim** (each is already human-readable:
 `- **[code] name** — H:MM — description (client)`):
 
-- **`### Engineering / R&D`** → fold into the **Engineering / R&D** section of the daily log (Step 10).
+- **`### Engineering / R&D`** → fold into the **Engineering / R&D** section of the daily log (Step 9).
 - **`### SR&ED`** → fold into the SR&ED log's **Work Performed** and roll the hours into
-  **Hours Logged** (Step 11), alongside any `.time-log.csv` rows.
+  **Hours Logged** (Step 10).
 - **`### Client`** → do NOT put these in the XP Quest daily/SR&ED logs; hold them for the
-  per-client log (Step 12).
+  per-client log (Step 11).
 
-The `**Total tracked:**` line is the day's overall tracked hours — use it for the Step 13 report.
+The `**Total tracked:**` line is the day's overall tracked hours — use it for the Step 12 report.
 
 ---
 
-## Step 9: Classify SR&ED content
+## Step 8: Classify SR&ED content
 
 Apply WP classification to all content (commits, issue bodies, session bullets):
 
@@ -245,7 +234,7 @@ Apply WP classification to all content (commits, issue bodies, session bullets):
 
 ---
 
-## Step 10: Write daily_log-DATE.md
+## Step 9: Write daily_log-DATE.md
 
 If zero content (no commits, no sessions, no meetings) → print "Nothing to log for DATE" and skip.
 
@@ -291,7 +280,7 @@ Save with Write tool.
 
 ---
 
-## Step 11: Write sred_daily_log-DATE.md
+## Step 10: Write sred_daily_log-DATE.md
 
 Skip if no SR&ED content found.
 
@@ -302,7 +291,7 @@ Otherwise write `$SRED_LOG`, grouping by WP with `---` between blocks:
 
 ### DATE — one-line focus derived from evidence
 
-**Hours Logged:** from time log, else [fill in]
+**Hours Logged:** from the Time Tracking SR&ED bullets (Step 7), else [fill in]
 **Work Category:** Software Development | System Design | Algorithm Research | Testing & Validation | Documentation of R&D
 **Work Package:** WPN — WP title
 
@@ -326,7 +315,7 @@ Otherwise write `$SRED_LOG`, grouping by WP with `---` between blocks:
 **Supporting Evidence:**
 
 - GitHub: `sha` — [#NN](url) repo — commit message
-- Time log: hours, start–stop UTC if present
+- Time Tracker: hours from the `## Time Tracking` SR&ED bullets, if present
 ```
 
 Rules:
@@ -339,11 +328,11 @@ Save with Write tool.
 
 ---
 
-## Step 12: Write client_daily_log-DATE.md
+## Step 11: Write client_daily_log-DATE.md
 
 Client work is NOT XP Quest R&D and must never appear in the daily or SR&ED logs — it is
 logged separately for billing/record-keeping. Build this from the `### Client` subsection of
-the `## Time Tracking` block (Step 8).
+the `## Time Tracking` block (Step 7).
 
 If there is no `### Client` subsection for the date → skip; write nothing.
 
@@ -376,7 +365,7 @@ Save each with the Write tool.
 
 ---
 
-## Step 13: Report
+## Step 12: Report
 
 Print per date:
 
