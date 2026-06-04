@@ -105,6 +105,76 @@ When `daily_git_summary.sh` emits a `## (untracked)` section, work through each 
    The helper lives in the org-level `xpq-org` checkout, but it must be executed from inside the target repo so `git rev-parse` resolves the SHA in the correct repository. It opens `$EDITOR` for the verbose comment (Rule 4 standard applies — this comment must be as complete as if it had been written at commit time), posts it to the issue, and appends the SHA to `journal/.reconciled` so the daily log skips it on the next run.
 4. The next daily run will no longer flag the SHA. The reconciled commit appears nowhere in the regular sections — the audit trail lives entirely in the issue thread, by design.
 
+## PR and issue lifecycle
+
+The commit conventions above govern *what lands on a branch*. This section governs *how branches become releases* and *when issues close*. It applies to every `xpq-*` repo, with one documented exception (the `#4`-class trivial fixes, below).
+
+### Two-branch promotion (deployable repos)
+
+`xpq-web` and `xpq-api` deploy from two long-lived branches:
+
+- **`dev`** — staging. Feature branches merge here first.
+- **`main`** — production (the repo's *default* branch). Only `dev` promotes here.
+
+`xpq-org` and `xpq-infra` have no staging surface, so they are single-track: feature branch → PR → `main`. Where this section says "off `dev`", read it as "off the repo's integration branch" — `dev` for the deployable repos, `main` for the tooling/docs repos.
+
+### Gates (convention over configuration)
+
+XP Quest is on the free GitHub plan: no server-side branch protection, no required reviews, no CODEOWNERS. The gates below are **conventions the solo developer keeps by habit**, not rules the platform enforces. They are written so that following them produces a clean, defensible history without any paid tooling.
+
+- **feature → `dev`:** open a PR; self-merge is fine. There is no acceptance ceremony — the point of this gate is to get the change onto staging to validate it. The PR body **references** its issue (a plain `#NN`); it does **not** close it.
+- **`dev` → `main`:** open a PR; **this is the acceptance gate.** Treat your own review here as real — production is downstream. This promotion PR is also where issues close (next rule).
+
+Never open a PR from a feature branch straight to `main` (Track 2 prod-only infra changes excepted — see CLAUDE.md §13). Claude must never merge a PR autonomously; Robin merges.
+
+### When issues close (the close-on-merge rule)
+
+GitHub's `Closes #NN` / `Fixes #NN` keyword **only auto-closes when the PR merges into the repository's *default* branch** (`main`). A PR that merges into `dev` carrying `Closes #NN` does **not** close the issue — GitHub silently holds the keyword.
+
+That mechanic drives the rule:
+
+1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. Work is "done" when it reaches production — which is exactly when GitHub will honour the keyword. A promotion PR that carries several features closes them all: `Closes #41 #42 #43`.
+2. **Feature → `dev` PRs reference, never close.** Use a plain `#NN` mention so the cross-reference lands on the issue without closing it.
+
+### Branch hygiene
+
+- **Enable "Automatically delete head branches"** in each repo's settings. Merged feature branches are then removed without manual cleanup.
+- **Re-create `dev` from `main` after each promotion.** Auto-delete fires on merge of any PR whose *head* is the branch — and `dev` is the head of the promotion PR. Resetting `dev` to `main` right after promoting keeps the two from drifting and keeps `dev` a clean fast-forward base for the next cycle:
+
+  ```bash
+  git switch main && git pull
+  git switch -C dev && git push --force-with-lease origin dev
+  ```
+
+- **No stale feature branches.** Once a branch is merged (and auto-deleted), don't resurrect it; branch fresh from the integration branch for the next issue.
+
+### Epics: many issues, one integration branch
+
+Most work is **one issue : one branch**. Keep it that way — it is the simplest mapping, and it makes the `commit-msg` hook's "`#<issue>` must equal the branch number" check exactly right.
+
+Some work is larger than a single issue but ships as one MVP — observability (UI instrumentation + collector infra + dashboards) is the canonical example. For that, use a nested **integration branch**:
+
+```
+dev
+└── <E>-observability            epic / integration branch, off dev
+    ├── <a>-spa-telemetry        off <E>-…
+    ├── <b>-collector-infra      off <E>-…
+    └── <c>-metrics-dashboard    off <E>-…
+```
+
+- **Every branch is still 1:1 with an issue** — the epic with its tracking issue `#E`, each sub-branch with its sub-issue. Commits on `<a>-spa-telemetry` are `#a:`, and the `commit-msg` hook is satisfied with **no change**. That is the whole reason for this shape: it gives you many issues across one body of work *without* relaxing the commit guard.
+- **Sub-PRs target the epic branch**, not `dev`. Check the base dropdown every time — a sub-PR accidentally opened against `dev` pushes a half-finished slice to staging.
+- **Integrate from `dev` frequently.** The epic branch is long-lived, so it drifts from `dev` as other work lands. Merge `dev` → epic branch on a regular cadence (and cascade into the open sub-branches), so the final promotion is a small reconciliation instead of a large one. Integrate early, integrate often — do not let an epic branch sit for weeks.
+- **Merge into the epic branch; never rebase it.** Rebasing the integration branch orphans the sub-branches based on it.
+- **Manually close each sub-issue when its sub-PR merges into the epic branch.** Because `Closes` only fires on `main` (above), sub-PRs into the epic branch will *not* auto-close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the MVP ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
+- **The epic issue `#E` closes at production.** The `dev` → `main` promotion PR carries `Closes #E`. So sub-issues close at *integration*; the epic closes at *prod*. This is a deliberate, narrow exception to the close-on-merge rule above — the only place an issue closes before reaching `main`.
+- **The epic branch is deploy-silent.** Only pushes/PRs to `main` (and `dev` tags) deploy; pushing the epic branch deploys nothing, and sub-PRs into it get no preview environment. You validate the integrated whole when the epic reaches `dev`/staging.
+- **SR&ED work stays 1:1.** The epic model is a non-SR&ED convenience. A SR&ED research issue is its own branch with its own granular commit trail (its Experiment Log *issues* are children, not branches) — don't fold SR&ED investigations onto an epic branch, or you blur the per-issue evidence the claim depends on.
+
+### The `#4`-class exception
+
+Trivial fixes (typos, formatting, doc cleanups) tracked under a repo's standing "Trivial fixes" issue are exempt from the promotion ceremony: a single branch, a direct PR, no epic, no sub-issue bookkeeping. Reserve this for genuinely trivial, non-feature changes only.
+
 ## Time tracking
 
 CRA wants hours attributable to specific SR&ED work packages, not bulk "I coded today."
