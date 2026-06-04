@@ -125,7 +125,7 @@ XP Quest is on the free GitHub plan: no server-side branch protection, no requir
 - **feature → `dev`:** open a PR; self-merge is fine. There is no acceptance ceremony — the point of this gate is to get the change onto staging to validate it. The PR body **references** its issue (a plain `#NN`); it does **not** close it.
 - **`dev` → `main`:** open a PR; **this is the acceptance gate.** Treat your own review here as real — production is downstream. This promotion PR is also where issues close (next rule).
 
-Never open a PR from a feature branch straight to `main` (Track 2 prod-only infra changes excepted — see CLAUDE.md §13). Claude must never merge a PR autonomously; Robin merges.
+Never open a PR from a feature branch straight to `main`. The one exception is a prod-only CI/infra change that can't be validated on `dev` (e.g. the production deploy workflow or Azure resource config): branch from `main` and PR to `main` directly. Claude must never merge a PR autonomously; Robin merges.
 
 ### When issues close (the close-on-merge rule)
 
@@ -133,7 +133,7 @@ GitHub's `Closes #NN` / `Fixes #NN` keyword **only auto-closes when the PR merge
 
 That mechanic drives the rule:
 
-1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. Work is "done" when it reaches production — which is exactly when GitHub will honour the keyword. A promotion PR that carries several features closes them all: `Closes #41 #42 #43`.
+1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. Work is "done" when it reaches production — which is exactly when GitHub will honour the keyword. A promotion PR that carries several features closes them all — repeat the keyword per issue (GitHub only honours the first one otherwise): `Closes #41, closes #42, closes #43`.
 2. **Feature → `dev` PRs reference, never close.** Use a plain `#NN` mention so the cross-reference lands on the issue without closing it.
 
 ### Branch hygiene
