@@ -338,10 +338,10 @@ If there is no `### Client` subsection for the date → skip; write nothing.
 
 Otherwise group the client bullets **by client** (the client name in parentheses on each
 bullet; fall back to the code's prefix if absent). Write one file per client, one level under
-`$LOGS_DIR` in a folder named for the client:
+`$LOGS_DIR` in a folder named for the (sanitized — see rule below) client:
 
 ```text
-${LOGS_DIR}/<Client Name>/client_daily_log-${DATE}.md
+${LOGS_DIR}/<sanitized Client Name>/client_daily_log-${DATE}.md
 ```
 
 Create the client folder if it does not exist. File contents:
@@ -349,14 +349,20 @@ Create the client folder if it does not exist. File contents:
 ```markdown
 # Client Work — <Client Name> — Daily Log — DATE
 
-- **[code] name** — H:MM
-  description
+- **[code] name** — H:MM — description (client)
 ```
 
 Rules:
 
+- **Sanitize the client subfolder name — never `$LOGS_DIR` itself.** The client name comes
+  from untrusted Tracker data and may contain path-breaking characters. Derive the folder by
+  replacing `/ \ : * ? " < > |` and control characters (and trimming leading/trailing dots and
+  whitespace) with `-`. **Preserve internal spaces** — they are valid on both Windows and Linux
+  (the `$LOGS_DIR` base path already contains one); do not collapse them. The heading inside the
+  file (`# Client Work — <Client Name> …`) keeps the original, unsanitized name.
 - Populate ONLY from the `### Client` bullets — they already carry code, name, H:MM,
-  description, and client; copy them through, just regrouped under the client folder/heading.
+  description, and client on a single line; copy each through verbatim, just regrouped under
+  the client folder/heading.
 - Do NOT pull in commits, sessions, or SR&ED narrative — this log is hours + the project's
   own name/description only.
 - Do NOT include any GitHub PAT or credential.
