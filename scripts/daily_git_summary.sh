@@ -66,6 +66,46 @@ if [[ -f "$TIME_LOG" ]]; then
   done < "$TIME_LOG"
 fi
 
+# Fold in the Time Tracker daily summary (per-project tracked hours) the XP Quest
+# widget writes as $XPQUEST_SUMMARY_DIR/daily-summary-<DATE>.json. The widget may
+# run on Windows (native exe) while this runs in WSL, so resolve the dir the same
+# way the skill does: explicit override, then the Linux home, then /mnt/c.
+DATE_FILE="daily-summary-${TARGET_DATE}.json"
+summary_json=""
+if [[ -n "${XPQUEST_SUMMARY_DIR:-}" && -f "${XPQUEST_SUMMARY_DIR}/${DATE_FILE}" ]]; then
+  summary_json="${XPQUEST_SUMMARY_DIR}/${DATE_FILE}"
+elif [[ -f "${HOME}/.xpquest/${DATE_FILE}" ]]; then
+  summary_json="${HOME}/.xpquest/${DATE_FILE}"
+else
+  summary_json=$(ls -t /mnt/c/Users/*/.xpquest/"${DATE_FILE}" 2>/dev/null | head -1 || true)
+fi
+
+# Prettify it into a human-readable Markdown block (grouped by workstream) here,
+# locally — so the daily-log skill can copy it through without parsing JSON itself.
+# Days with no summary file leave this empty and time is simply omitted.
+time_summary_block=""
+if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>&1; then
+  time_summary_block=$(jq -r '
+    def hm($s): ($s/60|floor) as $m | "\($m/60|floor):\((($m%60)|tostring|("0"+.)[-2:]))";
+    def wsname($w): {"engineering":"Engineering / R&D","sred":"SR&ED","client":"Client"}[$w] // $w;
+    def rank($w): {"engineering":0,"sred":1,"client":2}[$w] // 3;
+    "## Time Tracking",
+    "",
+    ( .projects
+      | group_by(.workstream)
+      | sort_by(.[0].workstream | rank(.))
+      | .[]
+      | ( "### " + wsname(.[0].workstream) ),
+        "",
+        ( .[] | "- **[\(.code)] \(.name)** — \(hm(.seconds))"
+                + (if (.description // "") != "" then " — \(.description)" else "" end)
+                + (if (.client // "") != "" then " (\(.client))" else "" end) ),
+        ""
+    ),
+    ( "**Total tracked:** " + hm([.projects[].seconds] | add) )
+  ' "$summary_json" 2>/dev/null || true)
+fi
+
 # Load reconciled SHAs (Layer 3 skip list).
 declare -A reconciled=()
 if [[ -f "$RECONCILED_FILE" ]]; then
@@ -219,13 +259,13 @@ if [[ -d "$MEETINGS_DIR" ]]; then
   done < <(find "$MEETINGS_DIR" -maxdepth 1 -name "${TARGET_DATE}-*.md" 2>/dev/null | sort)
 fi
 
-if [[ ${#sections[@]} -eq 0 && ${#untracked_lines[@]} -eq 0 && ${#meeting_lines[@]} -eq 0 && ${#time_log[@]} -eq 0 ]]; then
+if [[ ${#sections[@]} -eq 0 && ${#untracked_lines[@]} -eq 0 && ${#meeting_lines[@]} -eq 0 && ${#time_log[@]} -eq 0 && -z "$time_summary_block" ]]; then
   exit 0
 fi
 
 mkdir -p "$OUTPUT_DIR"
 
-if [[ ${#sections[@]} -gt 0 || ${#untracked_lines[@]} -gt 0 ]]; then
+if [[ ${#sections[@]} -gt 0 || ${#untracked_lines[@]} -gt 0 || -n "$time_summary_block" ]]; then
   {
     echo "# XP Quest - GitHub Commit Summary — ${TARGET_DATE}"
     echo ""
@@ -242,6 +282,10 @@ if [[ ${#sections[@]} -gt 0 || ${#untracked_lines[@]} -gt 0 ]]; then
       for line in "${untracked_lines[@]}"; do
         echo "$line"
       done
+      echo ""
+    fi
+    if [[ -n "$time_summary_block" ]]; then
+      echo "$time_summary_block"
       echo ""
     fi
   } > "$OUTPUT_FILE"
