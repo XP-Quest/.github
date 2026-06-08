@@ -4,8 +4,8 @@ This repo is the GitHub org-level `.github` repository for XP-Quest. It holds th
 
 1. **GitHub templates** — issue templates, PR template, and Copilot instructions that apply
    org-wide to every XP-Quest repo.
-2. **Operational scripts** — the daily-log pipeline, time tracker, and git hooks that enforce
-   the issue-driven development workflow.
+2. **Operational scripts** — the daily-log pipeline and git hooks that enforce the
+   issue-driven development workflow.
 3. **Claude Code skills** — agent skill definitions for enriching daily logs with session context.
 
 ---
@@ -41,14 +41,10 @@ git checkout -b 42-chunker-baseline
 
 Branch naming convention: `N-slug` where N is the issue number.
 
-**What fires automatically:** The Claude Code PostToolUse hook detects the branch creation and prints:
-
-```text
-⏱  Start time tracking for issue #42:
-   xpq-org/scripts/xpq-time.sh start 42
-```
-
-Run that command to begin the timer. It auto-detects the WP label from the issue.
+Track time against the issue in the **XP Quest Time Tracker** (the desktop widget from
+`rdcoe/timetracking`), tagging the entry to the matching workstream code — `xpq-eng`,
+`xpq-sred`, or `xpq-techops`. The widget's Daily Summary is what the daily-log pipeline reads
+later (see step 5); there is no shell command to run.
 
 ### 3. Do the work — guardrails are active
 
@@ -70,15 +66,9 @@ This means no commit can land without being traceable to a GitHub issue.
 gh pr create
 ```
 
-**What fires automatically:** The Claude Code PostToolUse hook detects the PR creation and prints:
-
-```text
-⏱  Stop time tracking before merging:
-   xpq-org/scripts/xpq-time.sh stop
-```
-
-Run that command. Hours are written to `journal/.time-log.csv`. Commit that file — the git
-timestamp is contemporaneous evidence of when the work was performed.
+Stop the timer for this issue in the **XP Quest Time Tracker** widget before merging. Tracked
+hours live in the widget's own store and surface in its Daily Summary — there is no file to
+commit.
 
 ### 5. The daily log is generated
 
@@ -128,8 +118,6 @@ xpq-org/
 ├── scripts/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
-│   ├── xpq-time.sh                 Time tracker: start/stop/status → journal/.time-log.csv
-│   ├── xpq-time-prompt.sh          PostToolUse hook: prompts time start/stop at key events
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
 │   ├── reconcile_commit.sh         Attach an untracked commit to an issue retroactively
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
@@ -148,10 +136,8 @@ xpq-org/
 │   ├── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
 │   └── xpquest-backfill-logs.md    Claude Code skill: /xpquest-backfill-logs [--from] [--to]
 │
-├── journal/                        Runtime data — committed to git for timestamps
+├── journal/                        Local per-machine skill state (gitignored)
 │   ├── .reconciled                 SHAs suppressed from (untracked) in daily summaries
-│   ├── .time-log.csv               Tab-delimited: date, issue, repo, wp, start, stop, hours
-│   ├── .time-active                In-progress timer state (deleted on stop)
 │   └── .daily-log-checkpoint       Last date processed by historical_git_summary.sh
 │
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
@@ -174,7 +160,7 @@ groups them by GitHub issue using a three-layer attribution scheme:
 Writes `github_summary-DATE.md` and a draft `daily_log-DATE.md` to `xpq-project/Daily-Logs/`.
 The draft daily log is replaced by the enriched version when `/xpquest-daily-log` runs.
 
-Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `RECONCILED_FILE`, `TIME_LOG`.
+Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `RECONCILED_FILE`.
 
 ### `historical_git_summary.sh [--from DATE] [--to DATE] [--checkpoint FILE]`
 
@@ -193,20 +179,6 @@ Subsequent runs (daily, scheduled, or manual):
 ```bash
 bash xpq-org/scripts/historical_git_summary.sh
 ```
-
-### `xpq-time.sh start|stop|status`
-
-Minimal time tracker for all development work. Writes to `journal/.time-log.csv`.
-
-```bash
-xpq-org/scripts/xpq-time.sh start 42                      # begin timing issue #42
-xpq-org/scripts/xpq-time.sh start 42 --repo XP-Quest/xpq-api
-xpq-org/scripts/xpq-time.sh stop                          # record elapsed time
-xpq-org/scripts/xpq-time.sh status                        # show running timer
-```
-
-Auto-detects the WP label (wp1–wp6) from the issue via `gh issue view`. Commit
-`journal/.time-log.csv` regularly — git timestamps are the contemporaneous evidence.
 
 ### `reconcile_commit.sh <sha> <issue>`
 
@@ -239,9 +211,9 @@ bash xpq-org/scripts/install-hooks.sh ~/xpquest/xpq-api
 | Script | Event | Trigger | Action |
 | --- | --- | --- | --- |
 | `xpq-branch-guard.sh` | PreToolUse | Any Write or Edit | Blocks if active branch is not `N-slug` |
-| `xpq-time-prompt.sh` | PostToolUse | `git checkout -b`, `git switch -c`, `gh pr create` | Prints time tracking reminder |
+| `xpq-pr-merge-guard.sh` | PreToolUse | `gh pr merge` | Hard-denies autonomous PR merges |
 
-Both are registered in `~/.claude/settings.json` and apply to all repos under `~/xpquest/`.
+These are registered in `~/.claude/settings.json` and apply to all repos under `~/xpquest/`.
 
 ---
 
@@ -309,16 +281,11 @@ possible by adding a `.github/ISSUE_TEMPLATE/` folder in that repo.
 
 ## Journal files
 
-`journal/` is committed to git. The files are small and their git commit timestamps provide
-independent verification of when work was recorded — important for CRA contemporaneous
-documentation.
+`journal/` holds local, per-machine state for the daily-log pipeline and is gitignored — it
+is not versioned. Contemporaneous time evidence comes from the XP Quest Time Tracker widget's
+own records, not from this folder.
 
 | File | Purpose |
 | --- | --- |
 | `.reconciled` | One SHA per line; suppressed from `(untracked)` in daily summaries |
-| `.time-log.csv` | Tab-delimited time entries. Header: `date, issue, repo, wp, start, stop, hours` |
-| `.time-active` | State file while a timer is running; deleted by `xpq-time.sh stop` |
 | `.daily-log-checkpoint` | Single date line; read by `historical_git_summary.sh` as next `--from` |
-
-Commit `.time-log.csv` after each `xpq-time.sh stop`. Commit `.reconciled` after each
-`reconcile_commit.sh` run.

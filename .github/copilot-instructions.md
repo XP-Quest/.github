@@ -70,13 +70,12 @@ Prefer Java for backend examples. Use the most appropriate language for the prob
 |-----------------------------|----------------------------------------------------------|
 | `daily_git_summary.sh DATE` | Commit summary for one date, grouped by issue            |
 | `historical_git_summary.sh` | Batch daily summaries from checkpoint to yesterday       |
-| `xpq-time.sh start/stop N`  | SR&ED time tracking; writes to `journal/.time-log.csv`  |
 | `reconcile_commit.sh`       | Assign untracked commits to an issue retroactively       |
 | `install-hooks.sh`          | Install commit-msg and other Git hooks into a repo       |
 
 ## Constraints
 
-- Solo founder — contemporaneous evidence (issues, commits, journal, time log) is the CRA claim.
+- Solo founder — contemporaneous evidence (issues, commits, daily logs, Time Tracker records) is the CRA claim.
 - Never inflate SR&ED labeling. Routine engineering wrongly tagged is a larger risk than under-tagging.
 - CCPC status governs 35% refundable ITC rate — share structure decisions need accountant sign-off.
 - IP must be assigned to the corporation before expenditures are claimable.
