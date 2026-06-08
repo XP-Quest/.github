@@ -84,7 +84,7 @@ Six months later at claim prep, those bullets link to issue #42's full comment t
 
 **Layer 2 — Mechanical recovery.** If a commit subject still lacks `#NNN:` (e.g., committed in a repo where the hook isn't installed), the parser inspects branches containing the commit via `git branch --all --contains` and looks for a branch name matching `^<digits>-`. When found, the issue is recovered silently — no GitHub write needed.
 
-**Layer 3 — Human-judged attribution.** Commits that survive Layers 1 and 2 land in a `## (untracked)` section of the daily log. These are the residual cases requiring judgment. The commit is still recorded in that day's log — it just isn't linked to an issue — so the worst case is an unattributed (not a lost) commit. Because the daily summary is date-scoped, an untracked commit surfaces only in its own day's log and does not recur on later runs.
+**Layer 3 — Human-judged attribution.** Commits that survive Layers 1 and 2 land in a `## (untracked)` section of the daily log. These are the residual cases requiring judgment. The commit is still recorded in that day's log — it just isn't linked to an issue — so the worst case is an unattributed (not lost) commit. Because the daily summary is date-scoped, an untracked commit surfaces only in its own day's log and does not recur on later runs.
 
 ### Layer 3 procedure (the manual judgment piece)
 
