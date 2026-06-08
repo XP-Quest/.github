@@ -27,7 +27,6 @@ OUTPUT_FILE="${OUTPUT_DIR}/github_summary-${TARGET_DATE}.md"
 DAILY_LOG_FILE="${OUTPUT_DIR}/daily_log-${TARGET_DATE}.md"
 MEETINGS_DIR="${MEETINGS_DIR:-${XPQUEST_ROOT}/xpq-project/Meetings}"
 RECONCILED_FILE="${RECONCILED_FILE:-${SEARCH_ROOT}/xpq-org/journal/.reconciled}"
-TIME_LOG="${TIME_LOG:-${SEARCH_ROOT}/xpq-org/journal/.time-log.csv}"
 
 AFTER="${TARGET_DATE} 00:00:00"
 BEFORE="${TARGET_DATE} 23:59:59"
@@ -47,24 +46,6 @@ is_sred() {
   done
   return 1
 }
-
-# Load time log entries for TARGET_DATE: key="<issue>", value="Xh (HH:MM–HH:MM) [wp]"
-declare -A time_log=()
-if [[ -f "$TIME_LOG" ]]; then
-  target_epoch=$(date -d "$TARGET_DATE" +%s)
-  while IFS=$'\t' read -r row_date issue repo wp start stop hours; do
-    row_epoch=$(date -d "$row_date" +%s 2>/dev/null) || continue
-    [[ "$row_epoch" -ne "$target_epoch" ]] && continue
-    fmt_start=$(date -u -d "$start" +%H:%M 2>/dev/null || echo "?")
-    fmt_stop=$(date -u -d "$stop"  +%H:%M 2>/dev/null || echo "?")
-    entry="${hours}h (${fmt_start}–${fmt_stop} UTC)${wp:+ [${wp}]}"
-    if [[ -n "${time_log[$issue]+_}" ]]; then
-      time_log["$issue"]+=" + ${entry}"
-    else
-      time_log["$issue"]="$entry"
-    fi
-  done < "$TIME_LOG"
-fi
 
 # Fold in the Time Tracker daily summary (per-project tracked hours) the XP Quest
 # widget writes as $XPQUEST_SUMMARY_DIR/daily-summary-<DATE>.json. The widget may
@@ -102,7 +83,7 @@ if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>
                 + (if (.client // "") != "" then " (\(.client))" else "" end) ),
         ""
     ),
-    ( "**Total tracked:** " + hm([.projects[].seconds] | add) )
+    ( "**Total tracked:** " + hm(([.projects[].seconds] | add) // 0) )
   ' "$summary_json" 2>/dev/null || true)
 fi
 
@@ -259,7 +240,7 @@ if [[ -d "$MEETINGS_DIR" ]]; then
   done < <(find "$MEETINGS_DIR" -maxdepth 1 -name "${TARGET_DATE}-*.md" 2>/dev/null | sort)
 fi
 
-if [[ ${#sections[@]} -eq 0 && ${#untracked_lines[@]} -eq 0 && ${#meeting_lines[@]} -eq 0 && ${#time_log[@]} -eq 0 && -z "$time_summary_block" ]]; then
+if [[ ${#sections[@]} -eq 0 && ${#untracked_lines[@]} -eq 0 && ${#meeting_lines[@]} -eq 0 && -z "$time_summary_block" ]]; then
   exit 0
 fi
 
@@ -302,20 +283,13 @@ fi
     done
     echo ""
   fi
-  if [[ ${#sred_log_lines[@]} -gt 0 || ${#time_log[@]} -gt 0 ]]; then
+  if [[ ${#sred_log_lines[@]} -gt 0 ]]; then
     echo "## SR&ED Activity"
     echo ""
-    if [[ ${#time_log[@]} -gt 0 ]]; then
-      echo "**Time logged:**"
-      for issue in $(echo "${!time_log[@]}" | tr ' ' '\n' | sort -n); do
-        echo "- #${issue}: ${time_log[$issue]}"
-      done
-      echo ""
-    fi
     for line in "${sred_log_lines[@]}"; do
       echo "$line"
     done
-    [[ ${#sred_log_lines[@]} -gt 0 ]] && echo ""
+    echo ""
   fi
   if [[ ${#untracked_lines[@]} -gt 0 ]]; then
     echo "## Untracked Commits"
