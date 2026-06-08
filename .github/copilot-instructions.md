@@ -70,7 +70,6 @@ Prefer Java for backend examples. Use the most appropriate language for the prob
 |-----------------------------|----------------------------------------------------------|
 | `daily_git_summary.sh DATE` | Commit summary for one date, grouped by issue            |
 | `historical_git_summary.sh` | Batch daily summaries from checkpoint to yesterday       |
-| `reconcile_commit.sh`       | Assign untracked commits to an issue retroactively       |
 | `install-hooks.sh`          | Install commit-msg and other Git hooks into a repo       |
 
 ## Constraints

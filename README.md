@@ -119,7 +119,6 @@ xpq-org/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
-│   ├── reconcile_commit.sh         Attach an untracked commit to an issue retroactively
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
 │   ├── hooks/
 │   │   └── commit-msg              Enforces #N: subject format; auto-prepends when possible
@@ -129,7 +128,6 @@ xpq-org/
 │       ├── daily_git_summary.bats
 │       ├── historical_git_summary.bats
 │       ├── install-hooks.bats
-│       ├── reconcile_commit.bats
 │       └── helpers/                Mock gh binary and other test utilities
 │
 ├── skills/
@@ -137,7 +135,6 @@ xpq-org/
 │   └── xpquest-backfill-logs.md    Claude Code skill: /xpquest-backfill-logs [--from] [--to]
 │
 ├── journal/                        Local per-machine skill state (gitignored)
-│   ├── .reconciled                 SHAs suppressed from (untracked) in daily summaries
 │   └── .daily-log-checkpoint       Last date processed by historical_git_summary.sh
 │
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
@@ -155,12 +152,15 @@ groups them by GitHub issue using a three-layer attribution scheme:
 
 1. **Layer 1** — commit subject starts with `#N:` → attributed directly to issue N
 2. **Layer 2** — no prefix but branch is named `N-slug` → attributed to issue N via branch name
-3. **Layer 3** — no attribution possible → lands in `(untracked)` section with reconcile instructions
+3. **Layer 3** — no attribution possible → lands in `(untracked)` section for human review
+
+A Layer 3 commit is still recorded in that day's log; it just isn't linked to an issue.
+Attribute it by amending the commit subject or noting the SHA on the relevant issue.
 
 Writes `github_summary-DATE.md` and a draft `daily_log-DATE.md` to `xpq-project/Daily-Logs/`.
 The draft daily log is replaced by the enriched version when `/xpquest-daily-log` runs.
 
-Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `RECONCILED_FILE`.
+Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`.
 
 ### `historical_git_summary.sh [--from DATE] [--to DATE] [--checkpoint FILE]`
 
@@ -179,19 +179,6 @@ Subsequent runs (daily, scheduled, or manual):
 ```bash
 bash xpq-org/scripts/historical_git_summary.sh
 ```
-
-### `reconcile_commit.sh <sha> <issue>`
-
-Used when a commit lands in the `(untracked)` section of a daily summary. Posts a comment
-to the issue on GitHub linking the commit, then appends the SHA to `journal/.reconciled`
-so future summaries suppress it from the untracked section.
-
-```bash
-cd ~/xpquest/xpq-api
-xpq-org/scripts/reconcile_commit.sh ff53fb4 12
-```
-
-Run from inside the repo that holds the commit. Use `--dry-run` to preview.
 
 ### `install-hooks.sh [repo-path]`
 
@@ -287,5 +274,4 @@ own records, not from this folder.
 
 | File | Purpose |
 | --- | --- |
-| `.reconciled` | One SHA per line; suppressed from `(untracked)` in daily summaries |
 | `.daily-log-checkpoint` | Single date line; read by `historical_git_summary.sh` as next `--from` |

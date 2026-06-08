@@ -12,13 +12,9 @@ bats_require_minimum_version 1.5.0
 #   Layer 3 — commits that survive both layers land in an (untracked) section
 #              for human review.
 #
-# Reconciled commits (listed in journal/.reconciled) are suppressed from
-# all sections.
-#
 # Environment variables used by the script and set here for isolation:
 #   SEARCH_ROOT          — directory tree searched for git repos
 #   OUTPUT_DIR           — where the markdown summary file is written
-#   RECONCILED_FILE      — path to the Layer 3 skip list
 #   XPQUEST_SUMMARY_DIR  — Time Tracker daily-summary-<DATE>.json lookup override
 #   MEETINGS_DIR         — meeting-notes directory
 #   HOME                 — redirected so the $HOME/.xpquest summary fallback is hermetic
@@ -43,7 +39,6 @@ setup() {
   # Isolate script outputs.
   export SEARCH_ROOT="$TEST_DIR/repos"
   export OUTPUT_DIR="$TEST_DIR/output"
-  export RECONCILED_FILE="$TEST_DIR/.reconciled"
 
   # Isolate the Time Tracker summary lookup and meetings scan from the developer's
   # real environment. Redirecting HOME makes the $HOME/.xpquest fallback hermetic;
@@ -53,7 +48,6 @@ setup() {
   export MEETINGS_DIR="$TEST_DIR/meetings"
 
   mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR" "$HOME" "$XPQUEST_SUMMARY_DIR"
-  touch "$RECONCILED_FILE"
 }
 
 teardown() {
@@ -271,64 +265,14 @@ summary_out() {
   grep -q "$sha"   "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
-@test "Layer 3: (untracked) section includes reconcile instructions" {
+@test "Layer 3: (untracked) section explains how to attribute the commit" {
   make_repo "testrepo"
   make_commit "no issue ref"
 
   bash "$SCRIPT" "$TEST_DATE"
 
-  grep -q "reconcile_commit.sh" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-}
-
-# ---------------------------------------------------------------------------
-# Reconciled commits (Layer 3 skip list)
-# ---------------------------------------------------------------------------
-
-@test "reconciled SHA is suppressed from (untracked) output" {
-  make_repo "testrepo"
-  make_commit "orphaned commit that was later reconciled"
-  local sha
-  sha=$(last_sha)
-
-  # Register the commit in the reconciled skip list.
-  echo "$sha  reconciled to XP-Quest/testrepo#7 on 2026-01-16" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  # Either no output file (if this was the only commit) or SHA not present.
-  if [ -f "$OUTPUT_DIR/github_summary-${TEST_DATE}.md" ]; then
-    ! grep -q "$sha" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-  else
-    true
-  fi
-}
-
-@test "reconciled SHA does not suppress a different, unreconciled commit" {
-  make_repo "testrepo"
-  make_commit "commit A — will be reconciled"
-  local sha_a
-  sha_a=$(last_sha)
-  make_commit "#55: commit B — tracked via prefix"
-
-  echo "$sha_a  reconciled to XP-Quest/testrepo#7 on 2026-01-16" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  grep -q "#55" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-}
-
-@test "reconciled file lines starting with '#' are treated as comments and ignored" {
-  make_repo "testrepo"
-  make_commit "orphaned commit"
-  local sha
-  sha=$(last_sha)
-
-  # Write the SHA as a comment — should NOT suppress it.
-  echo "# $sha  this line is a comment" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  grep -q "$sha" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
+  grep -q "amending the commit subject or noting the SHA" \
+    "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
 # ---------------------------------------------------------------------------
