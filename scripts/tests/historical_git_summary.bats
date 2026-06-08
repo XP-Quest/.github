@@ -37,10 +37,8 @@ STUB
   # exits cleanly (no commits) without writing files.
   export SEARCH_ROOT="$TEST_DIR/repos"
   export OUTPUT_DIR="$TEST_DIR/output"
-  export RECONCILED_FILE="$TEST_DIR/.reconciled"
   export DAILY_LOG_CHECKPOINT="$TEST_DIR/.checkpoint"
   mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR"
-  touch "$RECONCILED_FILE"
 }
 
 teardown() {

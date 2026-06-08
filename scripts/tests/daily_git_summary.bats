@@ -12,13 +12,12 @@ bats_require_minimum_version 1.5.0
 #   Layer 3 — commits that survive both layers land in an (untracked) section
 #              for human review.
 #
-# Reconciled commits (listed in journal/.reconciled) are suppressed from
-# all sections.
-#
 # Environment variables used by the script and set here for isolation:
-#   SEARCH_ROOT      — directory tree searched for git repos
-#   OUTPUT_DIR       — where the markdown summary file is written
-#   RECONCILED_FILE  — path to the Layer 3 skip list
+#   SEARCH_ROOT          — directory tree searched for git repos
+#   OUTPUT_DIR           — where the markdown summary file is written
+#   XPQUEST_SUMMARY_DIR  — Time Tracker daily-summary-<DATE>.json lookup override
+#   MEETINGS_DIR         — meeting-notes directory
+#   HOME                 — redirected so the $HOME/.xpquest summary fallback is hermetic
 
 SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/daily_git_summary.sh"
 HELPERS_DIR="$(dirname "$BATS_TEST_FILENAME")/helpers"
@@ -40,10 +39,15 @@ setup() {
   # Isolate script outputs.
   export SEARCH_ROOT="$TEST_DIR/repos"
   export OUTPUT_DIR="$TEST_DIR/output"
-  export RECONCILED_FILE="$TEST_DIR/.reconciled"
 
-  mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR"
-  touch "$RECONCILED_FILE"
+  # Isolate the Time Tracker summary lookup and meetings scan from the developer's
+  # real environment. Redirecting HOME makes the $HOME/.xpquest fallback hermetic;
+  # the /mnt/c glob (third tier) is environment-specific and not exercised here.
+  export HOME="$TEST_DIR/home"
+  export XPQUEST_SUMMARY_DIR="$TEST_DIR/widget"
+  export MEETINGS_DIR="$TEST_DIR/meetings"
+
+  mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR" "$HOME" "$XPQUEST_SUMMARY_DIR"
 }
 
 teardown() {
@@ -73,6 +77,25 @@ make_commit() {
 # Return the short SHA of the most recent commit in REPO_DIR.
 last_sha() {
   git -C "$REPO_DIR" log -1 --format='%h'
+}
+
+# Write a Time Tracker daily-summary JSON for TEST_DATE into the widget override
+# dir ($XPQUEST_SUMMARY_DIR, first resolution tier). Arg: the JSON body.
+write_widget_summary() {
+  mkdir -p "$XPQUEST_SUMMARY_DIR"
+  printf '%s\n' "$1" > "$XPQUEST_SUMMARY_DIR/daily-summary-${TEST_DATE}.json"
+}
+
+# Write a Time Tracker daily-summary JSON for TEST_DATE into $HOME/.xpquest
+# (second resolution tier). Arg: the JSON body.
+write_home_summary() {
+  mkdir -p "$HOME/.xpquest"
+  printf '%s\n' "$1" > "$HOME/.xpquest/daily-summary-${TEST_DATE}.json"
+}
+
+# Path to the github summary file produced for TEST_DATE.
+summary_out() {
+  printf '%s' "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
 # ---------------------------------------------------------------------------
@@ -242,64 +265,14 @@ last_sha() {
   grep -q "$sha"   "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
-@test "Layer 3: (untracked) section includes reconcile instructions" {
+@test "Layer 3: (untracked) section explains how to attribute the commit" {
   make_repo "testrepo"
   make_commit "no issue ref"
 
   bash "$SCRIPT" "$TEST_DATE"
 
-  grep -q "reconcile_commit.sh" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-}
-
-# ---------------------------------------------------------------------------
-# Reconciled commits (Layer 3 skip list)
-# ---------------------------------------------------------------------------
-
-@test "reconciled SHA is suppressed from (untracked) output" {
-  make_repo "testrepo"
-  make_commit "orphaned commit that was later reconciled"
-  local sha
-  sha=$(last_sha)
-
-  # Register the commit in the reconciled skip list.
-  echo "$sha  reconciled to XP-Quest/testrepo#7 on 2026-01-16" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  # Either no output file (if this was the only commit) or SHA not present.
-  if [ -f "$OUTPUT_DIR/github_summary-${TEST_DATE}.md" ]; then
-    ! grep -q "$sha" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-  else
-    true
-  fi
-}
-
-@test "reconciled SHA does not suppress a different, unreconciled commit" {
-  make_repo "testrepo"
-  make_commit "commit A — will be reconciled"
-  local sha_a
-  sha_a=$(last_sha)
-  make_commit "#55: commit B — tracked via prefix"
-
-  echo "$sha_a  reconciled to XP-Quest/testrepo#7 on 2026-01-16" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  grep -q "#55" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
-}
-
-@test "reconciled file lines starting with '#' are treated as comments and ignored" {
-  make_repo "testrepo"
-  make_commit "orphaned commit"
-  local sha
-  sha=$(last_sha)
-
-  # Write the SHA as a comment — should NOT suppress it.
-  echo "# $sha  this line is a comment" >> "$RECONCILED_FILE"
-
-  bash "$SCRIPT" "$TEST_DATE"
-
-  grep -q "$sha" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
+  grep -q "amending the commit subject or noting the SHA" \
+    "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
 # ---------------------------------------------------------------------------
@@ -335,4 +308,169 @@ last_sha() {
   local out="$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
   grep -q "## xpq-api" "$out"
   grep -q "## xpq-web" "$out"
+}
+
+# ---------------------------------------------------------------------------
+# Time Tracker rendering — the '## Time Tracking' block folded in from the
+# widget's daily-summary-<DATE>.json. These tests deliberately use no commits:
+# a summary file alone is sufficient to produce the output file, which keeps
+# them hermetic and independent of issue/gh resolution.
+# ---------------------------------------------------------------------------
+
+@test "Time block: a summary JSON alone (no commits) produces the output file" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Solo time entry","seconds":3600}]}'
+
+  run bash "$SCRIPT" "$TEST_DATE"
+
+  [ "$status" -eq 0 ]
+  [ -f "$(summary_out)" ]
+  grep -q "## Time Tracking" "$(summary_out)"
+}
+
+@test "Time block: no summary file anywhere means no '## Time Tracking' section" {
+  make_repo "testrepo"
+  make_commit "#42: some work"
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  run ! grep -q "## Time Tracking" "$(summary_out)"
+}
+
+@test "Time block: projects group into Engineering / R&D, SR&ED, and Client headers" {
+  write_widget_summary '{"projects":[
+    {"workstream":"engineering","code":"xpq-eng","name":"Eng work","seconds":3600},
+    {"workstream":"sred","code":"xpq-sred","name":"Research","seconds":3600},
+    {"workstream":"client","code":"acme-x","name":"Client work","seconds":3600,"client":"Acme Corp"}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF '### Engineering / R&D' "$(summary_out)"
+  grep -qF '### SR&ED' "$(summary_out)"
+  grep -qF '### Client' "$(summary_out)"
+}
+
+@test "Time block: workstream sections are ordered engineering, SR&ED, client" {
+  write_widget_summary '{"projects":[
+    {"workstream":"client","code":"acme-x","name":"Client work","seconds":3600,"client":"Acme Corp"},
+    {"workstream":"sred","code":"xpq-sred","name":"Research","seconds":3600},
+    {"workstream":"engineering","code":"xpq-eng","name":"Eng work","seconds":3600}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  run grep -nE '^### (Engineering / R&D|SR&ED|Client)$' "$(summary_out)"
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == *"Engineering / R&D"* ]]
+  [[ "${lines[1]}" == *"SR&ED"* ]]
+  [[ "${lines[2]}" == *"Client"* ]]
+}
+
+@test "Time block: an unrecognized workstream keeps its raw name and sorts last" {
+  write_widget_summary '{"projects":[
+    {"workstream":"engineering","code":"xpq-eng","name":"Eng work","seconds":3600},
+    {"workstream":"research","code":"xpq-misc","name":"Odd work","seconds":3600}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  run grep -nE '^### ' "$(summary_out)"
+  [[ "${lines[0]}" == *"Engineering / R&D"* ]]
+  [[ "${lines[1]}" == *"### research"* ]]
+}
+
+@test "Time block: project bullet shows code, name, and H:MM duration" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Chunker spike","seconds":3900}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF -- '- **[xpq-eng] Chunker spike** — 1:05' "$(summary_out)"
+}
+
+@test "Time block: minutes are zero-padded and sub-hour durations show 0 hours" {
+  write_widget_summary '{"projects":[
+    {"workstream":"engineering","code":"xpq-eng","name":"OneMinPast","seconds":3660},
+    {"workstream":"engineering","code":"xpq-eng","name":"QuarterHour","seconds":1500}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF -- '- **[xpq-eng] OneMinPast** — 1:01' "$(summary_out)"
+  grep -qF -- '- **[xpq-eng] QuarterHour** — 0:25' "$(summary_out)"
+}
+
+@test "Time block: description is appended after the duration when present" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Gate","seconds":3600,"description":"tune relevance gate"}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF -- '— tune relevance gate' "$(summary_out)"
+}
+
+@test "Time block: bullet has no trailing description when none is given" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Plumbing","seconds":3600}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  # Whole-line match proves nothing is appended after the duration.
+  grep -qxF -- '- **[xpq-eng] Plumbing** — 1:00' "$(summary_out)"
+}
+
+@test "Time block: client name is appended in parentheses when present" {
+  write_widget_summary '{"projects":[{"workstream":"client","code":"acme-x","name":"Client work","seconds":3600,"client":"Acme Corp"}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF -- '(Acme Corp)' "$(summary_out)"
+}
+
+@test "Time block: Total tracked sums seconds across all projects" {
+  write_widget_summary '{"projects":[
+    {"workstream":"engineering","code":"xpq-eng","name":"A","seconds":3600},
+    {"workstream":"sred","code":"xpq-sred","name":"B","seconds":1800}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qF -- '**Total tracked:** 1:30' "$(summary_out)"
+}
+
+# ---------------------------------------------------------------------------
+# Time Tracker file resolution — override → $HOME/.xpquest → (/mnt/c, untested)
+# ---------------------------------------------------------------------------
+
+@test "Resolution: XPQUEST_SUMMARY_DIR override is used when the dated file exists there" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"WIDGETONLY","name":"x","seconds":3600}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "WIDGETONLY" "$(summary_out)"
+}
+
+@test "Resolution: falls back to \$HOME/.xpquest when the override is unset" {
+  unset XPQUEST_SUMMARY_DIR
+  write_home_summary '{"projects":[{"workstream":"engineering","code":"HOMEONLY","name":"x","seconds":3600}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "HOMEONLY" "$(summary_out)"
+}
+
+@test "Resolution: override takes precedence over \$HOME/.xpquest when both exist" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"FROMWIDGET","name":"x","seconds":3600}]}'
+  write_home_summary   '{"projects":[{"workstream":"engineering","code":"FROMHOME","name":"x","seconds":3600}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "FROMWIDGET" "$(summary_out)"
+  run ! grep -q "FROMHOME" "$(summary_out)"
+}
+
+@test "Resolution: override dir set but file missing there falls back to \$HOME/.xpquest" {
+  # XPQUEST_SUMMARY_DIR is exported by setup() but holds no dated file.
+  write_home_summary '{"projects":[{"workstream":"engineering","code":"HOMEFALLBACK","name":"x","seconds":3600}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "HOMEFALLBACK" "$(summary_out)"
 }

@@ -26,7 +26,6 @@ OUTPUT_DIR="${OUTPUT_DIR:-${XPQUEST_ROOT}/xpq-project/Daily-Logs}"
 OUTPUT_FILE="${OUTPUT_DIR}/github_summary-${TARGET_DATE}.md"
 DAILY_LOG_FILE="${OUTPUT_DIR}/daily_log-${TARGET_DATE}.md"
 MEETINGS_DIR="${MEETINGS_DIR:-${XPQUEST_ROOT}/xpq-project/Meetings}"
-RECONCILED_FILE="${RECONCILED_FILE:-${SEARCH_ROOT}/xpq-org/journal/.reconciled}"
 
 AFTER="${TARGET_DATE} 00:00:00"
 BEFORE="${TARGET_DATE} 23:59:59"
@@ -85,16 +84,6 @@ if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>
     ),
     ( "**Total tracked:** " + hm(([.projects[].seconds] | add) // 0) )
   ' "$summary_json" 2>/dev/null || true)
-fi
-
-# Load reconciled SHAs (Layer 3 skip list).
-declare -A reconciled=()
-if [[ -f "$RECONCILED_FILE" ]]; then
-  while IFS= read -r line; do
-    [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
-    sha=$(awk '{print $1}' <<< "$line")
-    [[ -n "$sha" ]] && reconciled["$sha"]=1
-  done < "$RECONCILED_FILE"
 fi
 
 # Cache issue titles: key="<org/repo>:<issue>".
@@ -188,8 +177,6 @@ while IFS= read -r git_dir; do
     sha="${line%%	*}"
     subject="${line#*	}"
 
-    [[ -n "${reconciled[$sha]+set}" ]] && continue
-
     issue=""
     rendered_subject="$subject"
     if [[ "$subject" =~ ^#([0-9]+):[[:space:]]+(.*)$ ]]; then
@@ -257,8 +244,7 @@ if [[ ${#sections[@]} -gt 0 || ${#untracked_lines[@]} -gt 0 || -n "$time_summary
       echo "## (untracked)"
       echo ""
       echo "Commits with no \`#NN:\` subject prefix and no \`<issue>-\` branch fallback."
-      echo "For each commit, first \`cd\` into the repo shown on that line (the repo that contains the SHA)."
-      echo "Then run \`xpq-org/scripts/reconcile_commit.sh <sha> <issue>\` from there."
+      echo "Attribute each by amending the commit subject or noting the SHA on the relevant issue."
       echo ""
       for line in "${untracked_lines[@]}"; do
         echo "$line"

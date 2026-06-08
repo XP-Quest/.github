@@ -84,7 +84,7 @@ Six months later at claim prep, those bullets link to issue #42's full comment t
 
 **Layer 2 — Mechanical recovery.** If a commit subject still lacks `#NNN:` (e.g., committed in a repo where the hook isn't installed), the parser inspects branches containing the commit via `git branch --all --contains` and looks for a branch name matching `^<digits>-`. When found, the issue is recovered silently — no GitHub write needed.
 
-**Layer 3 — Human-judged reconciliation.** Commits that survive Layers 1 and 2 land in a `## (untracked)` section of the daily log. These are the residual cases requiring judgment.
+**Layer 3 — Human-judged attribution.** Commits that survive Layers 1 and 2 land in a `## (untracked)` section of the daily log. These are the residual cases requiring judgment. The commit is still recorded in that day's log — it just isn't linked to an issue — so the worst case is an unattributed (not lost) commit. Because the daily summary is date-scoped, an untracked commit surfaces only in its own day's log and does not recur on later runs.
 
 ### Layer 3 procedure (the manual judgment piece)
 
@@ -95,15 +95,7 @@ When `daily_git_summary.sh` emits a `## (untracked)` section, work through each 
    - *Attach to existing issue* if the diff clearly fits the scope of an open or recently-closed issue.
    - *File a new retroactive issue* if no existing issue fits. Use the appropriate template (`engineering-task` or `sred-research`); apply the `retroactive` label so retroactive filings are countable. Filing the issue retroactively is itself useful signal at claim time — it shows where process slipped.
    - *Never* attach by superficial keyword overlap. For SR&ED, attaching to the wrong WP issue is worse than leaving the commit orphaned, because it pollutes evidence.
-3. **Run the helper** with the chosen issue number:
-
-   ```bash
-   cd <repo>
-   ../xpq-org/scripts/reconcile_commit.sh <sha> <issue> --repo XP-Quest/<repo>
-   ```
-
-   The helper lives in the org-level `xpq-org` checkout, but it must be executed from inside the target repo so `git rev-parse` resolves the SHA in the correct repository. It opens `$EDITOR` for the verbose comment (Rule 4 standard applies — this comment must be as complete as if it had been written at commit time), posts it to the issue, and appends the SHA to `journal/.reconciled` so the daily log skips it on the next run.
-4. The next daily run will no longer flag the SHA. The reconciled commit appears nowhere in the regular sections — the audit trail lives entirely in the issue thread, by design.
+3. **Attribute it.** If the commit has not been pushed, amend its subject to the `#NNN:` form. Otherwise, post a comment on the chosen issue linking the SHA, with a description as complete as if it had been written at commit time (Rule 4 standard). The audit trail then lives in the issue thread.
 
 ## PR and issue lifecycle
 
