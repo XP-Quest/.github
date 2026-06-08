@@ -317,3 +317,13 @@ Commits:    N tracked, M SR&ED
 ```
 
 The checkpoint was already updated to today by `historical_git_summary.sh` in Step 1.
+
+---
+
+## Step 12: Commit ~/.claude (last action)
+
+As the final action of every run, sync the `~/.claude` directory:
+
+```bash
+cd ~/.claude && git add . && git commit -m "Sync $(date +%Y-%m-%d)" && git push
+```
