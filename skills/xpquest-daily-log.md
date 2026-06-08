@@ -215,6 +215,21 @@ through **verbatim** (each is already human-readable:
 - **`### Client`** → do NOT put these in the XP Quest daily/SR&ED logs; hold them for the
   per-client log (Step 11).
 
+**XP Quest internal-tooling code (`xpq-techops`):** work on XPQ's own utilities (e.g. the
+Time Tracker, dev/ops tooling) is logged under the `xpq-techops` project code. It is XPQ
+**engineering** — fold it into the **Engineering / R&D** section. These entries are
+intentionally lightweight: a bullet referencing just the project **code and name** (plus any
+tracker description) is sufficient — do not require a GitHub issue link or per-commit
+breakdown. If correlating commits happen to surface (e.g. in `rdcoe/timetracking`) you may
+list them, but their absence is expected and fine.
+
+**Ask when time isn't obviously XPQ-correlatable.** If a `## Time Tracking` entry cannot be
+confidently tied to XP Quest from its code/name/description plus the day's commits and
+sessions (e.g. an unfamiliar code, or `xpq-eng` hours with no matching XPQ evidence anywhere),
+do NOT guess its workstream or silently file it — pause and ask Robin which XPQ work (or
+client) the time belongs to before writing the log. Recognized codes (`xpq-eng*`, `xpq-sred*`,
+`xpq-techops`) don't need this; only genuinely ambiguous entries do.
+
 The `**Total tracked:**` line is the day's overall tracked hours — use it for the Step 12 report.
 
 ---
