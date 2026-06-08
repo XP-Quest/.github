@@ -160,7 +160,7 @@ Attribute it by amending the commit subject or noting the SHA on the relevant is
 Writes `github_summary-DATE.md` and a draft `daily_log-DATE.md` to `xpq-project/Daily-Logs/`.
 The draft daily log is replaced by the enriched version when `/xpquest-daily-log` runs.
 
-Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`.
+Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `MEETINGS_DIR`, `XPQUEST_SUMMARY_DIR` (with `$HOME/.xpquest` as a fallback).
 
 ### `historical_git_summary.sh [--from DATE] [--to DATE] [--checkpoint FILE]`
 
