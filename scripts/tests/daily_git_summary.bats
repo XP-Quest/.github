@@ -41,7 +41,6 @@ setup() {
   export SEARCH_ROOT="$TEST_DIR/repos"
   export OUTPUT_DIR="$TEST_DIR/output"
   export RECONCILED_FILE="$TEST_DIR/.reconciled"
-  export TIME_LOG="$TEST_DIR/.time-log.csv"
 
   mkdir -p "$SEARCH_ROOT" "$OUTPUT_DIR"
   touch "$RECONCILED_FILE"
