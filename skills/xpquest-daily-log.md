@@ -85,7 +85,7 @@ bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh DATE
 Use the FROM/TO values captured before the call to build the iteration list. Set per-date paths:
 
 ```text
-LOGS_DIR="/home/rcoe/xpquest/xpq-project/Daily Logs"
+LOGS_DIR="/home/rcoe/xpquest/xpq-project/Daily-Logs"
 DAILY_LOG="${LOGS_DIR}/daily_log-${DATE}.md"
 SRED_LOG="${LOGS_DIR}/sred_daily_log-${DATE}.md"
 GITHUB_SUMMARY="${LOGS_DIR}/github_summary-${DATE}.md"

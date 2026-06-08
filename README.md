@@ -105,7 +105,7 @@ Claude Code session history, and writes:
 - `daily_log-DATE.md` — complete development record (all work: engineering + admin + SR&ED)
 - `sred_daily_log-DATE.md` — SR&ED-only extraction for CRA auditing (written only when SR&ED work is found)
 
-Both files land in `xpq-project/Daily Logs/`.
+Both files land in `xpq-project/Daily-Logs/`.
 
 The SR&ED log is not a separate workflow — it is extracted from the same evidence that
 documents all development. A clean issue trail makes the extraction automatic.
@@ -171,7 +171,7 @@ groups them by GitHub issue using a three-layer attribution scheme:
 2. **Layer 2** — no prefix but branch is named `N-slug` → attributed to issue N via branch name
 3. **Layer 3** — no attribution possible → lands in `(untracked)` section with reconcile instructions
 
-Writes `github_summary-DATE.md` and a draft `daily_log-DATE.md` to `xpq-project/Daily Logs/`.
+Writes `github_summary-DATE.md` and a draft `daily_log-DATE.md` to `xpq-project/Daily-Logs/`.
 The draft daily log is replaced by the enriched version when `/xpquest-daily-log` runs.
 
 Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `RECONCILED_FILE`, `TIME_LOG`.
