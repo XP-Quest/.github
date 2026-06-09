@@ -43,7 +43,9 @@ Before calling the script, read the effective FROM and TO so you know which date
 
 ```bash
 # Honors DAILY_LOG_CHECKPOINT env var; matches historical_git_summary.sh's default.
-CHECKPOINT_FILE="${DAILY_LOG_CHECKPOINT:-/home/rcoe/xpquest/xpq-org/journal/.daily-log-checkpoint}"
+# Skill-owned state lives OUTSIDE the repo (~/.xpquest) so a branch switch or
+# git clean can never delete it — see xpq-org #4.
+CHECKPOINT_FILE="${DAILY_LOG_CHECKPOINT:-${HOME}/.xpquest/.daily-log-checkpoint}"
 FROM=$(cat "$CHECKPOINT_FILE" 2>/dev/null || echo "")   # overridden by --from if supplied
 TO=$(date -d yesterday +%Y-%m-%d)                        # overridden by --to if supplied
 ```
@@ -76,7 +78,7 @@ bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh DATE
 
 `historical_git_summary.sh`:
 
-- Reads `journal/.daily-log-checkpoint` for the default FROM when `--from` is not supplied
+- Reads `~/.xpquest/.daily-log-checkpoint` for the default FROM when `--from` is not supplied
 - Calls `daily_git_summary.sh DATE` for each date, writing `github_summary-DATE.md` and a
   starter `daily_log-DATE.md` (marked `Session transcripts not included`)
 - Updates the checkpoint to **today** (the run date) on completion

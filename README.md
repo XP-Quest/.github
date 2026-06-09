@@ -134,9 +134,6 @@ xpq-org/
 │   ├── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
 │   └── xpquest-backfill-logs.md    Claude Code skill: /xpquest-backfill-logs [--from] [--to]
 │
-├── journal/                        Local per-machine skill state (gitignored)
-│   └── .daily-log-checkpoint       Last date processed by historical_git_summary.sh
-│
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
 └── README.md                       This file
 ```
@@ -165,7 +162,7 @@ Env overrides: `SEARCH_ROOT`, `OUTPUT_DIR`, `MEETINGS_DIR`, `XPQUEST_SUMMARY_DIR
 ### `historical_git_summary.sh [--from DATE] [--to DATE] [--checkpoint FILE]`
 
 Runs `daily_git_summary.sh` for each date in a range. Without `--from`, resumes from the
-checkpoint file (`journal/.daily-log-checkpoint`). Without `--to`, defaults to yesterday.
+checkpoint file (`~/.xpquest/.daily-log-checkpoint`). Without `--to`, defaults to yesterday.
 On completion, updates the checkpoint to today so the next run picks up from here.
 
 First run (no checkpoint exists yet):
@@ -266,12 +263,16 @@ possible by adding a `.github/ISSUE_TEMPLATE/` folder in that repo.
 
 ---
 
-## Journal files
+## Skill state (`~/.xpquest`)
 
-`journal/` holds local, per-machine state for the daily-log pipeline and is gitignored — it
-is not versioned. Contemporaneous time evidence comes from the XP Quest Time Tracker widget's
-own records, not from this folder.
+The daily-log pipeline keeps its local, per-machine state in `~/.xpquest/`, **outside** any
+git repo — so a branch switch or `git clean` can never delete it (which is exactly what
+happened when this state lived in the repo's old `journal/` folder). This state is owned by
+the skill and is independent of the XP Quest Time Tracker; the widget happens to use the same
+directory but manages its own files there. The skill's only coupling to the tracker is a
+read-only import of `daily-summary-<DATE>.json` *iff* present (see `daily_git_summary.sh`).
+Override the location with `DAILY_LOG_CHECKPOINT` (or `--checkpoint FILE`).
 
 | File | Purpose |
 | --- | --- |
-| `.daily-log-checkpoint` | Single date line; read by `historical_git_summary.sh` as next `--from` |
+| `~/.xpquest/.daily-log-checkpoint` | Single date line; read by `historical_git_summary.sh` as next `--from` |
