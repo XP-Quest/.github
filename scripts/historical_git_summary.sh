@@ -2,7 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEFAULT_CHECKPOINT="${SCRIPT_DIR}/../journal/.daily-log-checkpoint"
+# Checkpoint lives OUTSIDE the repo so branch switches / git clean can't delete it.
+# This is skill-owned state under ~/.xpquest; it is independent of the Time Tracker
+# (which happens to use the same dir but manages its own files there).
+DEFAULT_CHECKPOINT="${HOME}/.xpquest/.daily-log-checkpoint"
 
 usage() {
   cat <<EOF
@@ -15,7 +18,7 @@ Without --to, defaults to yesterday.
 Options:
   --from DATE         Start date (inclusive). Defaults to checkpoint date if omitted.
   --to DATE           End date (inclusive). Defaults to yesterday.
-  --checkpoint FILE   Path to checkpoint file (default: journal/.daily-log-checkpoint).
+  --checkpoint FILE   Path to checkpoint file (default: ~/.xpquest/.daily-log-checkpoint).
                       Stores the last-run date; always updated to today on completion.
                       Override via env: DAILY_LOG_CHECKPOINT
   -h, --help          Show this help message
