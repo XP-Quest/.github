@@ -131,8 +131,10 @@ The branch model above drives three environments. GitHub Actions workflows in ea
 | Manual trigger (`workflow_dispatch`) | Deploy `main` to production | **prod** — human-initiated in early phases; automated promotion is a future introduction once gates mature |
 
 - The promotion PR is the **system-test window**: for an epic, opening it is the moment the integrated MVP becomes testable as a whole on staging. Validation that needs only the dev environment happens earlier, continuously.
+- **A promotion promotes `dev`'s entire state.** There is no cherry-picking: every commit on `dev` rides the next promotion, whichever issue motivated it. Corollary: **`dev` must always be promotable.** Work that can't sit on `dev` safely in a partial state is epic-scoped by definition — sub-issues integrate on the epic branch, and `dev` only ever receives complete shippable slices (a finished issue, or a finished epic). The epic mechanism gates *incompleteness*; staging gates *breakage*.
+- **Promotion freeze.** While a promotion PR is open, the only feature → `dev` merges permitted are fixes for findings from the staging test — they join the promotion under test, and staging redeploys with them. Everything unrelated queues until the promotion merges or closes. Without the freeze, the open promotion PR (whose head *is* `dev`) silently absorbs unrelated merges mid-test and invalidates what staging already validated.
 - Merging to `main` does **not** deploy production. Prod deploys are deliberate, manual events against `main`'s tip — at least until automated deployment is introduced.
-- If staging testing fails, push fixes to `dev` (via feature branches as usual); the open promotion PR picks them up and staging redeploys. Closing a promotion PR without merging must also tear down staging.
+- Closing a promotion PR without merging must also tear down staging.
 
 ### When issues close (the close-on-merge rule)
 
