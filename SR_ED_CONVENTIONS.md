@@ -167,13 +167,13 @@ That mechanic drives the rule:
 
 Most work is **one issue : one branch**. Keep it that way — it is the simplest mapping, and it makes the `commit-msg` hook's "`#<issue>` must equal the branch number" check exactly right.
 
-An **epic** is the wrapper for work that must deploy as one atomic unit but spans more than one issue — either because it ships as one MVP, or because it coordinates changes across repos (app + infra) that would break if deployed apart. The epic's tracking issue `#E` is the orchestrator; cloud is entered only when *every* sub-issue is complete. This is the whole reason the deployment lifecycle can gate on completed units without per-issue dependency bookkeeping — the epic *is* the dependency boundary.
+An **epic** is the wrapper for **any multi-story deliverable** — any deliverable whose stories must land together for the system to stay stable. Epic scope is defined by *atomicity, not size*: two stories that would break the system if deployed apart are an epic; a ten-story deliverable whose stories are each independently shippable is not (those are just ten issues). The trigger is "do these have to move as one to maintain stability?" — most often because they coordinate changes across repos (app + infra). The epic's tracking issue `#E` is the orchestrator; cloud is entered only when *every* sub-issue is complete. This is the whole reason the deployment lifecycle can gate on completed units without per-issue dependency bookkeeping — the epic *is* the dependency boundary.
 
 Two shapes, by whether the work lives in one repo or several.
 
 #### Single-repo epic — nested integration branch
 
-Work larger than one issue but inside a single repo (observability — UI instrumentation + collector infra + dashboards — is the canonical example) uses a nested **integration branch**:
+A multi-story deliverable inside a single repo (observability — UI instrumentation + collector infra + dashboards, which must ship together to be coherent — is the canonical example) uses a nested **integration branch**:
 
 ```
 dev
@@ -187,7 +187,7 @@ dev
 - **Sub-PRs target the epic branch**, not `dev`. Check the base dropdown every time — a sub-PR accidentally opened against `dev` pushes a half-finished slice onto the integration branch, breaking the "`dev` is always promotable" invariant.
 - **Integrate from `dev` frequently.** The epic branch is long-lived, so it drifts from `dev` as other work lands. Merge `dev` → epic branch on a regular cadence (and cascade into the open sub-branches), so the final promotion is a small reconciliation instead of a large one. Integrate early, integrate often — do not let an epic branch sit for weeks.
 - **Merge into the epic branch; never rebase it.** Rebasing the integration branch orphans the sub-branches based on it.
-- **Manually close each sub-issue when its sub-PR merges into the epic branch.** Because `Closes` only fires on `main` (above), sub-PRs into the epic branch will *not* auto-close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the MVP ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
+- **Manually close each sub-issue when its sub-PR merges into the epic branch.** Because `Closes` only fires on `main` (above), sub-PRs into the epic branch will *not* auto-close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the deliverable ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
 - **The epic issue `#E` closes at production.** The `dev` → `main` promotion PR carries `Closes #E`. So sub-issues close at *integration*; the epic closes at *prod*. This is a deliberate, narrow exception to the close-on-merge rule above — the only place an issue closes before reaching `main`.
 - **The epic branch is deploy-silent.** Pushing the epic branch deploys nothing, and sub-PRs into it get no environment. The integrated whole reaches `dev` (and local validation) when the epic branch merges to `dev`, and gets its **staging** system-test window when the promotion PR opens (see *Deployment lifecycle*).
 - **SR&ED work stays 1:1.** The epic model is a non-SR&ED convenience. A SR&ED research issue is its own branch with its own granular commit trail (its Experiment Log *issues* are children, not branches) — don't fold SR&ED investigations onto an epic branch, or you blur the per-issue evidence the claim depends on.
