@@ -1,0 +1,21 @@
+name: pr-lifecycle
+
+# xpq-org's own caller for the shared closing-keyword guard. xpq-org is
+# single-track (feature -> main), so every PR here targets `main` and is the
+# close point for its issue. Self-references the reusable workflow in this same
+# repo via a local path so it validates on the PR that introduces it.
+#
+# Other repos use the cross-repo form instead:
+#   uses: XP-Quest/.github/.github/workflows/pr-lifecycle-reusable.yml@main
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  closing-keyword:
+    uses: ./.github/workflows/pr-lifecycle-reusable.yml

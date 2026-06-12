@@ -1,0 +1,40 @@
+name: pr-lifecycle (reusable)
+
+# Org-wide closing-keyword guard for PRs that target a repo's default branch
+# (`main`). Called by a thin `pr-lifecycle.yml` caller in each repo. GitHub only
+# honours Closes/Fixes/Resolves on the default branch, so a PR merging to `main`
+# (a dev->main promotion in the two-track repos, or a feature->main PR in the
+# single-track ones) must carry the keyword in its body or the issue silently
+# stays open.
+#
+# Reusable workflows inherit the caller's `github` context, so the caller's
+# `pull_request` event payload (`github.event.pull_request.body`) is available
+# here without passing it as an input.
+#
+# Advisory only on the free tier (no branch protection) — a red run is a reminder
+# to add the keyword, not a hard block.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  closing-keyword:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a closing keyword in the PR body
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        shell: bash
+        run: |
+          # Mirror GitHub's own auto-close grammar: keyword, optional colon, then
+          # a mandatory space (GitHub requires the space, so do not match a bare
+          # `Closes:#NN`). Multiple spaces / tabs are fine.
+          if grep -qiE '(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#[0-9]+' <<< "$BODY"; then
+            echo "Closing keyword found."
+          else
+            echo "::error::PR body must contain a closing keyword (e.g. 'Closes #NN'). For PRs to main this is the close point per SR_ED_CONVENTIONS close-on-merge rule."
+            exit 1
+          fi
