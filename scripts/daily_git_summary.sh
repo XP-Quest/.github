@@ -30,20 +30,12 @@ MEETINGS_DIR="${MEETINGS_DIR:-${XPQUEST_ROOT}/xpq-project/Meetings}"
 AFTER="${TARGET_DATE} 00:00:00"
 BEFORE="${TARGET_DATE} 23:59:59"
 
-SRED_KEYWORDS=(
-  "interview question" "llm grounding" "experienceentry" "profile" "résumé"
-  "seed data" "conversational" "ambiguity" "vector search" "diversity"
-  "domain heuristic" "clarifying question" "semantic spread" "pgvector"
-  "hnsw" "dual-index" "marketplace index" "embedding" "publishing workflow"
-)
-
+# SR&ED is determined by the issue's `sred` GitHub label (see SR_ED_CONVENTIONS.md), not by
+# matching keywords in commit/issue text — text matching false-positives on routine engineering
+# that happens to mention a WP-adjacent term (e.g. "pgvector" in an infra migration issue).
 is_sred() {
-  local text="${1,,}"
-  local kw
-  for kw in "${SRED_KEYWORDS[@]}"; do
-    [[ "$text" == *"$kw"* ]] && return 0
-  done
-  return 1
+  local repo="$1" issue="$2"
+  [[ ",${issue_labels_cache["${repo}:${issue}"]-}," == *",sred,"* ]]
 }
 
 # Fold in the Time Tracker daily summary (per-project tracked hours) the XP Quest
@@ -86,23 +78,36 @@ if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>
   ' "$summary_json" 2>/dev/null || true)
 fi
 
-# Cache issue titles: key="<org/repo>:<issue>".
+# Cache issue titles and labels together (one `gh` call each): key="<org/repo>:<issue>".
+# issue_labels_cache stores a comma-joined, comma-bounded label list (",label1,label2,") so
+# is_sred() can substring-match a single label name without false-matching a prefix/suffix.
 declare -A issue_title_cache=()
+declare -A issue_labels_cache=()
 
-fetch_issue_title() {
+fetch_issue_meta() {
   local repo="$1" issue="$2"
   local key="${repo}:${issue}"
   if [[ -n "${issue_title_cache[$key]+set}" ]]; then
-    printf '%s' "${issue_title_cache[$key]}"
     return
   fi
-  local title=""
+  local title="" labels=""
   if command -v gh >/dev/null 2>&1; then
-    title=$(gh issue view "$issue" --repo "$repo" --json title --jq '.title' 2>/dev/null || true)
+    local json
+    json=$(gh issue view "$issue" --repo "$repo" --json title,labels 2>/dev/null || true)
+    if [[ -n "$json" ]]; then
+      title=$(jq -r '.title' <<<"$json" 2>/dev/null || true)
+      labels=$(jq -r '[.labels[].name] | join(",")' <<<"$json" 2>/dev/null || true)
+    fi
   fi
   [[ -z "$title" ]] && title="(title unavailable)"
   issue_title_cache["$key"]="$title"
-  printf '%s' "$title"
+  issue_labels_cache["$key"]="$labels"
+}
+
+fetch_issue_title() {
+  local repo="$1" issue="$2"
+  fetch_issue_meta "$repo" "$issue"
+  printf '%s' "${issue_title_cache["${repo}:${issue}"]}"
 }
 
 # Extract org/repo from origin URL.
@@ -191,17 +196,22 @@ while IFS= read -r git_dir; do
       continue
     fi
 
+    sred_hit=1
     if [[ -n "$repo_id" ]]; then
       title=$(fetch_issue_title "$repo_id" "$issue")
       issue_link="[#${issue}: ${title}](https://github.com/${repo_id}/issues/${issue})"
+      is_sred "$repo_id" "$issue" && sred_hit=0
     else
       title="(no remote configured)"
       issue_link="#${issue}: ${title}"
+      # No remote means no `gh` lookup is possible; err conservative (engineering, not SR&ED)
+      # per CLAUDE.md §4 — routine engineering wrongly left untagged is a smaller risk than
+      # SR&ED wrongly claimed.
     fi
     section+="- ${issue_link}"$'\n'
     section+="  ${sha}: ${rendered_subject}"$'\n'
 
-    if is_sred "$title $rendered_subject"; then
+    if [[ $sred_hit -eq 0 ]]; then
       sred_log_lines+=( "- **${repo_name}** ${issue_link}" )
       sred_log_lines+=( "  - \`${sha}\`: ${rendered_subject}" )
     else
