@@ -79,8 +79,9 @@ if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>
 fi
 
 # Cache issue titles and labels together (one `gh` call each): key="<org/repo>:<issue>".
-# issue_labels_cache stores a comma-joined, comma-bounded label list (",label1,label2,") so
-# is_sred() can substring-match a single label name without false-matching a prefix/suffix.
+# issue_labels_cache stores a comma-joined label list ("label1,label2"); is_sred() adds
+# bounding commas before substring-matching so a label name never matches a prefix/suffix
+# of another label.
 declare -A issue_title_cache=()
 declare -A issue_labels_cache=()
 
@@ -92,11 +93,15 @@ fetch_issue_meta() {
   fi
   local title="" labels=""
   if command -v gh >/dev/null 2>&1; then
-    local json
-    json=$(gh issue view "$issue" --repo "$repo" --json title,labels 2>/dev/null || true)
-    if [[ -n "$json" ]]; then
-      title=$(jq -r '.title' <<<"$json" 2>/dev/null || true)
-      labels=$(jq -r '[.labels[].name] | join(",")' <<<"$json" 2>/dev/null || true)
+    # gh's built-in --jq (no external jq dependency). Two-line output: title, then labels —
+    # safe to split on newline because GitHub issue titles cannot contain newlines.
+    local meta
+    meta=$(gh issue view "$issue" --repo "$repo" --json title,labels \
+      --jq '.title, ([.labels[].name] | join(","))' 2>/dev/null || true)
+    if [[ -n "$meta" ]]; then
+      title="${meta%%$'\n'*}"
+      labels="${meta#*$'\n'}"
+      [[ "$labels" == "$meta" ]] && labels=""  # no second line (defensive)
     fi
   fi
   [[ -z "$title" ]] && title="(title unavailable)"
