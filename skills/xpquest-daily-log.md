@@ -140,10 +140,18 @@ Discover sessions by message-level `timestamp` inside each JSONL — not by file
 A session started one day and resumed the next would otherwise be misattributed to the
 resume day, silently dropping the original day's content.
 
+Bucket by **local calendar date, not raw UTC**. Git commits are grouped by `daily_git_summary.sh`
+using the local system timezone (`date -d "$TARGET_DATE 00:00:00"`), and Robin's working day
+runs into the evening — anything after ~8pm EDT (UTC-4) already falls after midnight UTC, so
+a naive UTC-prefix match systematically shifts an entire evening's session bullets one calendar
+day ahead of the commits they belong with. Convert with `astimezone()` (no hardcoded offset, so
+it tracks EST/EDT automatically) before comparing dates.
+
 ```python
 import json, glob, os
+from datetime import datetime
 
-DATE = "YYYY-MM-DD"  # UTC; matches the leading characters of each entry's `timestamp`
+DATE = "YYYY-MM-DD"  # local calendar date — matches daily_git_summary.sh's bucketing
 sessions_by_file = {}
 for path in sorted(glob.glob(os.path.expanduser(
         "~/.claude/projects/-home-rcoe-xpquest/*.jsonl"))):
@@ -152,7 +160,11 @@ for path in sorted(glob.glob(os.path.expanduser(
         for line in f:
             try:
                 obj = json.loads(line)
-                if not obj.get('timestamp', '').startswith(DATE):
+                ts = obj.get('timestamp', '')
+                if not ts:
+                    continue
+                local_date = datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d')
+                if local_date != DATE:
                     continue
                 if obj.get('type') != 'user':
                     continue
@@ -177,8 +189,8 @@ for path, msgs in sessions_by_file.items():
 
 Notes:
 
-- The `timestamp` field on each line is ISO 8601 UTC. Compare by string prefix against `YYYY-MM-DD`.
-- One JSONL may contribute to multiple daily logs (sessions that span midnight UTC, or sessions resumed across days). That's correct — emit per-date bullets independently.
+- The `timestamp` field on each line is ISO 8601 UTC; convert to local time before bucketing (see above) rather than comparing the raw string prefix.
+- One JSONL may contribute to multiple daily logs (sessions that genuinely span local midnight, or sessions resumed on a later day). That's correct — emit per-date bullets independently.
 - The `< … >` / `[{ … }]` filters drop system-injected tool-result and hook envelopes from the human-message stream.
 
 For each session file with matching messages:
