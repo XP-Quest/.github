@@ -136,62 +136,42 @@ Cache results by `repo#NN`. Use `first_line` to write "why" context, not just "w
 
 ## Step 5: Read Claude session history for this date
 
-Discover sessions by message-level `timestamp` inside each JSONL — not by file mtime.
-A session started one day and resumed the next would otherwise be misattributed to the
-resume day, silently dropping the original day's content.
+Call the script — do not reimplement this logic in the skill:
 
-Bucket by **local calendar date, not raw UTC**. Git commits are grouped by `daily_git_summary.sh`
-using the local system timezone (`date -d "$TARGET_DATE 00:00:00"`), and Robin's working day
-runs into the evening — anything after ~8pm EDT (UTC-4) already falls after midnight UTC, so
-a naive UTC-prefix match systematically shifts an entire evening's session bullets one calendar
-day ahead of the commits they belong with. Convert with `astimezone()` (no hardcoded offset, so
-it tracks EST/EDT automatically) before comparing dates.
-
-```python
-import json, glob, os
-from datetime import datetime
-
-DATE = "YYYY-MM-DD"  # local calendar date — matches daily_git_summary.sh's bucketing
-sessions_by_file = {}
-for path in sorted(glob.glob(os.path.expanduser(
-        "~/.claude/projects/-home-rcoe-xpquest/*.jsonl"))):
-    msgs = []
-    with open(path) as f:
-        for line in f:
-            try:
-                obj = json.loads(line)
-                ts = obj.get('timestamp', '')
-                if not ts:
-                    continue
-                local_date = datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone().strftime('%Y-%m-%d')
-                if local_date != DATE:
-                    continue
-                if obj.get('type') != 'user':
-                    continue
-                content = obj.get('message', {}).get('content', '')
-                if isinstance(content, list):
-                    text = ' '.join(c.get('text', '') for c in content if c.get('type') == 'text')
-                else:
-                    text = str(content)
-                text = text.strip()
-                if text and len(text) > 20 and not text.startswith('<') and not text.startswith('[{'):
-                    msgs.append(text[:400])
-            except Exception:
-                pass
-    if msgs:
-        sessions_by_file[path] = msgs
-for path, msgs in sessions_by_file.items():
-    print(f"--- {path}")
-    for m in msgs[:5]:
-        print(m)
-        print()
+```bash
+python3 /home/rcoe/xpquest/xpq-org/scripts/session_summary.py "$DATE"
 ```
+
+It prints one block per session file that has messages on DATE:
+
+```text
+--- /home/rcoe/.claude/projects/-home-rcoe-xpquest/<session-uuid>.jsonl
+<message text>
+
+<message text>
+```
+
+Empty output means no session activity on that date; proceed without session content.
+
+`session_summary.py`:
+
+- Discovers sessions by message-level `timestamp` inside each JSONL — not by file mtime, so a
+  session started one day and resumed the next is not misattributed to the resume day.
+- Buckets by **local calendar date, not raw UTC**, matching how `daily_git_summary.sh` groups
+  commits. (Anything after ~8pm EDT already falls after midnight UTC; a naive UTC-prefix match
+  shifts an entire evening's session bullets one calendar day ahead of the commits they belong
+  with.)
+- Drops system-injected envelopes (`< … >` tool/hook payloads, `[{ … }]` block arrays) and
+  acknowledgements of 20 characters or fewer from the human-message stream.
+- Prints the first 5 messages per session, each truncated to 400 characters. Override with
+  `--max-messages N` / `--truncate N` when a date needs more detail.
 
 Notes:
 
-- The `timestamp` field on each line is ISO 8601 UTC; convert to local time before bucketing (see above) rather than comparing the raw string prefix.
-- One JSONL may contribute to multiple daily logs (sessions that genuinely span local midnight, or sessions resumed on a later day). That's correct — emit per-date bullets independently.
-- The `< … >` / `[{ … }]` filters drop system-injected tool-result and hook envelopes from the human-message stream.
+- One JSONL may contribute to multiple daily logs (sessions that genuinely span local midnight,
+  or sessions resumed on a later day). That's correct — emit per-date bullets independently.
+- When this skill is invoked as a slash command, its own SKILL.md preamble is injected as a user
+  message and appears in the output. Ignore those blocks — they are skill text, not Robin's input.
 
 For each session file with matching messages:
 
