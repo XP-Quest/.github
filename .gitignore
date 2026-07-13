@@ -1,3 +1,7 @@
 # Daily-log skill state now lives in ~/.xpquest (outside this repo), so there is
 # nothing repo-local left to ignore. The old `journal/` folder was retired in #4
 # because in-repo state was deleted by branch switches / git clean.
+
+# Python bytecode cache
+__pycache__/
+*.pyc

@@ -161,17 +161,19 @@ Empty output means no session activity on that date; proceed without session con
   commits. (Anything after ~8pm EDT already falls after midnight UTC; a naive UTC-prefix match
   shifts an entire evening's session bullets one calendar day ahead of the commits they belong
   with.)
-- Drops system-injected envelopes (`< … >` tool/hook payloads, `[{ … }]` block arrays) and
-  acknowledgements of 20 characters or fewer from the human-message stream.
+- Drops everything the harness synthesized rather than Robin typing: `isMeta` events (a slash
+  command injects the invoked skill's own SKILL.md body as a user message), `< … >` tool/hook
+  payloads, `[{ … }]` block arrays, `[Request interrupted by user…]` markers, and
+  acknowledgements of 20 characters or fewer.
 - Prints the first 5 messages per session, each truncated to 400 characters. Override with
   `--max-messages N` / `--truncate N` when a date needs more detail.
+
+Everything the script prints is therefore Robin's own input — take it at face value.
 
 Notes:
 
 - One JSONL may contribute to multiple daily logs (sessions that genuinely span local midnight,
   or sessions resumed on a later day). That's correct — emit per-date bullets independently.
-- When this skill is invoked as a slash command, its own SKILL.md preamble is injected as a user
-  message and appears in the output. Ignore those blocks — they are skill text, not Robin's input.
 
 For each session file with matching messages:
 

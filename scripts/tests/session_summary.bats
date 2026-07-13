@@ -46,6 +46,23 @@ with open(path, "a", encoding="utf-8") as f:
 PY
 }
 
+# meta_event <file> <timestamp> <text> — a harness-injected event (isMeta: true),
+# e.g. the SKILL.md body a slash command injects as a `type: user` message.
+meta_event() {
+  local file="$1" timestamp="$2" text="$3"
+  python3 - "$file" "$timestamp" "$text" <<'PY'
+import json, sys
+path, timestamp, text = sys.argv[1:4]
+with open(path, "a", encoding="utf-8") as f:
+    f.write(json.dumps({
+        "timestamp": timestamp,
+        "type": "user",
+        "isMeta": True,
+        "message": {"content": text},
+    }) + "\n")
+PY
+}
+
 run_script() {
   run python3 "$SCRIPT" "$@" --sessions-dir "$SESSIONS_DIR"
 }
@@ -178,6 +195,111 @@ run_script() {
   run_script "2026-07-11"
 
   [ -z "$output" ]
+}
+
+# ---------------------------------------------------------------------------
+# Harness-injected content (issue #39)
+#
+# Slash-command invocations inject the skill's own SKILL.md body as a `type: user`
+# event. It has no `<` or `[{` prefix and is long, so the text filters alone let it
+# through — it reached the 2026-07-11 daily log as if Robin had typed it. The
+# transcript flags these `isMeta: true`.
+# ---------------------------------------------------------------------------
+
+@test "isMeta events are excluded (slash-command skill preamble)" {
+  meta_event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" \
+    "Base directory for this skill: /home/rcoe/.claude/skills/xpquest-daily-log"
+
+  run_script "2026-07-11"
+
+  [ -z "$output" ]
+}
+
+@test "isMeta events are excluded regardless of which skill injected them" {
+  meta_event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" \
+    "# Schedule Cloud Agents
+
+You are helping the user schedule a recurring cloud agent."
+
+  run_script "2026-07-11"
+
+  [ -z "$output" ]
+}
+
+@test "an isMeta preamble does not crowd out real messages in the same session" {
+  # Regression: on 2026-07-11 the preamble consumed 2 of the 5 printed slots.
+  meta_event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" \
+    "Base directory for this skill: /home/rcoe/.claude/skills/xpquest-daily-log"
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:05:00.000Z" "user" \
+    "the real instruction Robin actually typed into the session"
+
+  run_script "2026-07-11" --max-messages 1
+
+  [[ "$output" == *"the real instruction Robin actually typed"* ]]
+  [[ "$output" != *"Base directory for this skill"* ]]
+}
+
+@test "messages without an isMeta flag are retained" {
+  # Most of the historical corpus predates the `origin` field, so absence of
+  # provenance metadata must never be read as 'injected'.
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" "user" \
+    "an ordinary message carrying no provenance metadata at all"
+
+  run_script "2026-07-11"
+
+  [[ "$output" == *"ordinary message carrying no provenance"* ]]
+}
+
+@test "isMeta: false is treated as human input" {
+  python3 - "$SESSIONS_DIR/a.jsonl" <<'PY'
+import json, sys
+with open(sys.argv[1], "a", encoding="utf-8") as f:
+    f.write(json.dumps({
+        "timestamp": "2026-07-11T13:00:00.000Z",
+        "type": "user",
+        "isMeta": False,
+        "message": {"content": "explicitly flagged as not injected, so keep it"},
+    }) + "\n")
+PY
+
+  run_script "2026-07-11"
+
+  [[ "$output" == *"explicitly flagged as not injected"* ]]
+}
+
+# ---------------------------------------------------------------------------
+# Interruption markers (issue #39)
+#
+# Written by the harness when a turn is cut short. Long enough to clear the
+# length filter, and NOT flagged isMeta — so they need naming explicitly.
+# ---------------------------------------------------------------------------
+
+@test "interruption markers are excluded" {
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" "user" \
+    "[Request interrupted by user]"
+
+  run_script "2026-07-11"
+
+  [ -z "$output" ]
+}
+
+@test "the 'for tool use' interruption variant is excluded" {
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" "user" \
+    "[Request interrupted by user for tool use]"
+
+  run_script "2026-07-11"
+
+  [ -z "$output" ]
+}
+
+@test "a message merely quoting an interruption marker is retained" {
+  # The filter anchors on the prefix, so quoting the marker mid-sentence is safe.
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" "user" \
+    "why does the log keep showing [Request interrupted by user] as a message?"
+
+  run_script "2026-07-11"
+
+  [[ "$output" == *"why does the log keep showing"* ]]
 }
 
 @test "events with no timestamp are excluded" {

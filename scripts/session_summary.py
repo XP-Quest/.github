@@ -41,6 +41,9 @@ DEFAULT_SESSIONS_DIR = "~/.claude/projects/-home-rcoe-xpquest"
 DEFAULT_MAX_MESSAGES = 5
 DEFAULT_TRUNCATE = 400
 
+# Covers both "[Request interrupted by user]" and the "…for tool use" variant.
+INTERRUPTION_PREFIX = "[Request interrupted"
+
 
 def parse_args(argv):
     p = argparse.ArgumentParser(
@@ -107,6 +110,23 @@ def message_text(event):
     return str(content)
 
 
+def is_injected(event):
+    """True if the harness synthesized this event rather than Robin typing it.
+
+    Slash-command invocations inject the skill's own SKILL.md body as a
+    `type: user` event. It carries no `<` or `[{` prefix and is long, so the
+    text filters below let it through, and it lands in the daily log looking
+    like contemporaneous developer intent — which the log is SR&ED evidence of.
+
+    The transcript flags every such event `isMeta: true`, so this is exact
+    rather than heuristic. Do NOT invert it into a positive test for
+    `origin.kind == "human"`: `origin` is a newer field that most of the
+    historical corpus predates, so requiring it would silently drop the bulk of
+    the archive.
+    """
+    return event.get("isMeta") is True
+
+
 def is_human_message(text):
     """Filter the injected envelopes out of the human-message stream.
 
@@ -114,8 +134,18 @@ def is_human_message(text):
     as real input; they open with `<` (system-reminder / tool tags) or `[{`
     (serialized block arrays). Anything 20 characters or fewer is an ack ("yes",
     "ok") that carries no narrative value.
+
+    `[Request interrupted by user…]` markers are written by the harness when a
+    turn is cut short. They are long enough to clear the length filter and are
+    not flagged `isMeta`, so they need naming explicitly.
     """
-    return bool(text) and len(text) > 20 and not text.startswith("<") and not text.startswith("[{")
+    if not text or len(text) <= 20:
+        return False
+    if text.startswith("<") or text.startswith("[{"):
+        return False
+    if text.startswith(INTERRUPTION_PREFIX):
+        return False
+    return True
 
 
 def collect(sessions_dir, date, truncate):
@@ -139,7 +169,7 @@ def collect(sessions_dir, date, truncate):
                 timestamp = event.get("timestamp", "")
                 if not timestamp or local_date_of(timestamp) != date:
                     continue
-                if event.get("type") != "user":
+                if event.get("type") != "user" or is_injected(event):
                     continue
                 text = message_text(event).strip()
                 if is_human_message(text):
