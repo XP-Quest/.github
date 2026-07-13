@@ -126,8 +126,7 @@ def collect(sessions_dir, date, truncate):
         messages = []
         try:
             handle = open(path, encoding="utf-8")
-        except OSError as exc:
-            sys.stderr.write(f"Warning: cannot read {path}: {exc}\n")
+        except OSError:
             continue
         with handle as f:
             for line in f:
