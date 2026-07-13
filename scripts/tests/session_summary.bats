@@ -189,6 +189,16 @@ run_script() {
   [ -z "$output" ]
 }
 
+@test "events with non-string timestamp are excluded (and do not crash)" {
+  printf '%s\n' '{"timestamp":123,"type":"user","message":{"content":"a message long enough to pass the length filter"}}' \
+    > "$SESSIONS_DIR/a.jsonl"
+
+  run_script "2026-07-11"
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "corrupt JSON lines are tolerated and do not abort the run" {
   printf '%s\n' 'this is not valid json {{{' > "$SESSIONS_DIR/a.jsonl"
   event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" "user" \
