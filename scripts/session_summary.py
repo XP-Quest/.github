@@ -112,7 +112,7 @@ def is_human_message(text):
 
     Hook payloads and tool-result blobs arrive on the same `type: user` channel
     as real input; they open with `<` (system-reminder / tool tags) or `[{`
-    (serialized block arrays). Anything under 20 characters is an ack ("yes",
+    (serialized block arrays). Anything 20 characters or fewer is an ack ("yes",
     "ok") that carries no narrative value.
     """
     return bool(text) and len(text) > 20 and not text.startswith("<") and not text.startswith("[{")
