@@ -162,7 +162,7 @@ Empty output means no session activity on that date; proceed without session con
   shifts an entire evening's session bullets one calendar day ahead of the commits they belong
   with.)
 - Drops system-injected envelopes (`< … >` tool/hook payloads, `[{ … }]` block arrays) and
-  sub-20-character acknowledgements from the human-message stream.
+  acknowledgements of 20 characters or fewer from the human-message stream.
 - Prints the first 5 messages per session, each truncated to 400 characters. Override with
   `--max-messages N` / `--truncate N` when a date needs more detail.
 
