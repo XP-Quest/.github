@@ -153,6 +153,13 @@ def main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
     date = validate_date(args.date)
 
+    if args.max_messages < 0:
+        sys.stderr.write("Error: --max-messages must be >= 0\n")
+        return 1
+    if args.truncate <= 0:
+        sys.stderr.write("Error: --truncate must be >= 1\n")
+        return 1
+
     sessions = collect(args.sessions_dir, date, args.truncate)
     for path, messages in sessions.items():
         print(f"--- {path}")
