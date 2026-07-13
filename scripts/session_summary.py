@@ -143,7 +143,10 @@ def is_human_message(text):
         return False
     if text.startswith("<") or text.startswith("[{"):
         return False
-    if text.startswith(INTERRUPTION_PREFIX):
+    if text in (
+        f"{INTERRUPTION_PREFIX} by user]",
+        f"{INTERRUPTION_PREFIX} by user for tool use]",
+    ):
         return False
     return True
 
