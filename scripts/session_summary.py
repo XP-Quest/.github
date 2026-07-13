@@ -87,7 +87,7 @@ def local_date_of(timestamp):
             .astimezone()
             .strftime("%Y-%m-%d")
         )
-    except ValueError:
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
