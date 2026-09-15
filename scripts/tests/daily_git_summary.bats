@@ -567,6 +567,50 @@ summary_out() {
   grep -qF "\"${host_lower}\"" "$(summary_out)"
 }
 
+@test "Merge: a legacy visible Time Tracking block is preserved when tracker-state and local JSON are both absent" {
+  mkdir -p "$OUTPUT_DIR"
+  cat > "$(summary_out)" <<EOF
+# XP Quest - GitHub Commit Summary — ${TEST_DATE}
+
+## Time Tracking
+
+### Engineering / R&D
+
+- **[xpq-eng] XP Quest engineering** — 0:30
+
+**Total tracked:** 0:30
+EOF
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "## Time Tracking" "$(summary_out)"
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:30' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 0:30' "$(summary_out)"
+}
+
+@test "Merge: a legacy visible Time Tracking block is migrated before a new host contribution is merged" {
+  mkdir -p "$OUTPUT_DIR"
+  cat > "$(summary_out)" <<EOF
+# XP Quest - GitHub Commit Summary — ${TEST_DATE}
+
+## Time Tracking
+
+### Engineering / R&D
+
+- **[xpq-eng] XP Quest engineering** — 0:30
+
+**Total tracked:** 0:30
+EOF
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":900}]}'
+
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:45' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 0:45' "$(summary_out)"
+  grep -qF -- '"legacy-visible-block":1800' "$(summary_out)"
+  grep -qF -- '"flash":900' "$(summary_out)"
+}
+
 # ---------------------------------------------------------------------------
 # daily_log-DATE.md starter draft — must never regress an already-enriched log.
 # DAILY_LOG_FILE lives in the shared OneDrive Daily-Logs folder; a second host

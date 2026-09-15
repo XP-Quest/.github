@@ -61,6 +61,66 @@ fi
 HOST_ID="${XPQUEST_HOST_ID:-$(hostname 2>/dev/null || true)}"
 HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
 
+extract_existing_time_block() {
+  local file="$1"
+  awk '
+    /^## Time Tracking$/ { in_block=1 }
+    in_block && /^## / && $0 != "## Time Tracking" { exit }
+    in_block {
+      if ($0 == "<!-- tracker-state") { in_state=1; next }
+      if (in_state && $0 == "tracker-state -->") { in_state=0; next }
+      if (!in_state) print
+    }
+  ' "$file"
+}
+
+legacy_tracker_state_from_block() {
+  local block="$1"
+  jq -Rs -c '
+    def wsid($w):
+      if $w == "Engineering / R&D" then "engineering"
+      elif $w == "SR&ED" then "sred"
+      elif $w == "Client" then "client"
+      else $w end;
+    def seconds($hm):
+      ($hm | capture("^(?<hours>[0-9]+):(?<minutes>[0-9]{2})$")) as $t
+      | (($t.hours | tonumber) * 3600) + (($t.minutes | tonumber) * 60);
+    reduce (split("\n")[]) as $line (
+      {workstream: null, state: {}};
+      if ($line | startswith("### ")) then
+        .workstream = wsid($line[4:])
+      elif (.workstream != null) and ($line | test("^- \\*\\*\\[[^]]+\\] .*\\*\\* — [0-9]+:[0-9]{2}")) then
+        ($line | capture("^- \\*\\*\\[(?<code>[^\\]]+)\\] (?<name>.+)\\*\\* — (?<hm>[0-9]+:[0-9]{2})(?<tail>.*)$")) as $m
+        | ($m.tail
+            | if . == "" then {description: "", client: ""}
+              elif startswith(" — ") then
+                .[3:] as $desc
+                | if ($desc | test(" \\([^()]*\\)$")) then
+                    {description: ($desc | sub(" \\([^()]*\\)$"; "")), client: ($desc | capture(" \\((?<client>[^()]*)\\)$").client)}
+                  else
+                    {description: $desc, client: ""}
+                  end
+              elif test("^ \\([^()]*\\)$") then
+                {description: "", client: (capture("^ \\((?<client>[^()]*)\\)$").client)}
+              else
+                {description: "", client: ""}
+              end
+          ) as $meta
+        | .state[$m.code][$m.name] = {
+            code: $m.code,
+            name: $m.name,
+            workstream: .workstream,
+            description: $meta.description,
+            client: $meta.client,
+            by: {"legacy-visible-block": seconds($m.hm)}
+          }
+      else
+        .
+      end
+    ) | .state
+  ' <<< "$block"
+}
+
 # Prettify the Time Tracker data into a human-readable Markdown block (grouped by
 # workstream) here, locally — so the daily-log skill can copy it through without
 # parsing JSON itself. Days with no summary file anywhere leave this empty and
@@ -77,10 +137,14 @@ HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
 # than being partitioned by device; only the invisible state comment tracks host
 # attribution, and it is never shown to the skill or to Robin as a rendered line.
 existing_tracker_state="{}"
+legacy_time_summary_block=""
 if [[ -f "$OUTPUT_FILE" ]]; then
+  legacy_time_summary_block=$(extract_existing_time_block "$OUTPUT_FILE")
   extracted=$(sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$OUTPUT_FILE" | sed '1d;$d')
   if [[ -n "$extracted" ]] && command -v jq >/dev/null 2>&1 && echo "$extracted" | jq empty >/dev/null 2>&1; then
     existing_tracker_state="$extracted"
+  elif [[ -n "$legacy_time_summary_block" ]] && command -v jq >/dev/null 2>&1; then
+    existing_tracker_state=$(legacy_tracker_state_from_block "$legacy_time_summary_block" 2>/dev/null || echo "{}")
   fi
 fi
 
@@ -135,6 +199,10 @@ if command -v jq >/dev/null 2>&1; then
     "tracker-state -->"
     end
   ' 2>/dev/null || true)
+fi
+
+if [[ -z "$time_summary_block" && -n "$legacy_time_summary_block" ]]; then
+  time_summary_block="$legacy_time_summary_block"
 fi
 
 # Cache issue titles and labels together (one `gh` call each): key="<org/repo>:<issue>".
