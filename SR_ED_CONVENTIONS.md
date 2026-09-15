@@ -233,13 +233,17 @@ The merge instead happens at the **shared output layer**. `Daily-Logs/` lives in
 is the one thing both machines read and write for a given date:
 
 - **Time Tracking hours**: `daily_git_summary.sh` reads back the `tracker-state` it hid in a
-  comment at the end of the existing `github_summary-DATE.md` (keyed by project code + name,
-  recording each host's last-known seconds), folds in this machine's current Tracker JSON —
-  replacing only this host's own prior entry, which is what keeps a same-host re-run
-  idempotent — and re-sums. The visible `## Time Tracking` block is never partitioned by
-  device; it stays organized purely by workstream/project, identical in shape to a
-  single-machine run. See `XPQUEST_HOST_ID` in the script if a machine's `hostname` output
-  ever needs overriding.
+  base64-encoded comment at the end of the existing `github_summary-DATE.md` (keyed by project
+  code + name, recording each host's last-known seconds — base64 rather than raw JSON so a
+  tracker-controlled string can never contain a literal `-->` and break out of the HTML
+  comment), folds in this machine's current Tracker JSON — replacing only this host's own
+  prior entry, which is what keeps a same-host re-run idempotent — and re-sums. The visible
+  `## Time Tracking` block is never partitioned by device; it stays organized purely by
+  workstream/project, identical in shape to a single-machine run. See `XPQUEST_HOST_ID` in the
+  script if a machine's `hostname` output ever needs overriding. A file that predates this
+  comment (or whose comment is unreadable) has its visible bullets migrated in once, under a
+  frozen `legacy` pseudo-host key, so pre-existing hours are never silently dropped the next
+  time that file is rewritten.
 - **Session content, commits, SR&ED narrative**: the `xpquest-daily-log` skill never
   regenerates an already-enriched `daily_log-DATE.md` / `sred_daily_log-DATE.md` /
   `client_daily_log-DATE.md` wholesale. It reads the existing file, computes this host's

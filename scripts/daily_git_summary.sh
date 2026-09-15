@@ -76,11 +76,77 @@ HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
 # per Robin's instruction that merged content lives in the same sections rather
 # than being partitioned by device; only the invisible state comment tracks host
 # attribution, and it is never shown to the skill or to Robin as a rendered line.
+# The hidden state comment is base64-encoded, not raw JSON: project name,
+# description, client, or host id come from the Tracker widget (not something
+# this script controls), and a raw '-->' inside any of them would close the HTML
+# comment early, leaking the rest of the encoded state into the rendered Daily
+# Log. Base64's alphabet can never contain '-->', so this is immune to that by
+# construction rather than by escaping specific characters.
 existing_tracker_state="{}"
 if [[ -f "$OUTPUT_FILE" ]]; then
-  extracted=$(sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$OUTPUT_FILE" | sed '1d;$d')
-  if [[ -n "$extracted" ]] && command -v jq >/dev/null 2>&1 && echo "$extracted" | jq empty >/dev/null 2>&1; then
-    existing_tracker_state="$extracted"
+  extracted_b64=$(sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$OUTPUT_FILE" | sed '1d;$d')
+  if [[ -n "$extracted_b64" ]]; then
+    decoded=$(printf '%s' "$extracted_b64" | base64 -d 2>/dev/null || true)
+    if [[ -n "$decoded" ]] && command -v jq >/dev/null 2>&1 && echo "$decoded" | jq empty >/dev/null 2>&1; then
+      existing_tracker_state="$decoded"
+    fi
+  fi
+fi
+
+# Migrate a pre-merge-feature file: OUTPUT_FILE may already carry a visible
+# '## Time Tracking' block from before the tracker-state comment existed (every
+# Daily-Logs date generated before this change). Without this, the first re-run
+# for such a date from a host with no local Tracker JSON for it would see
+# existing_tracker_state == "{}", local_projects == "[]", render nothing, and
+# silently drop that date's historical hours the moment anything else (a commit,
+# a meeting note) causes OUTPUT_FILE to be rewritten. Parse the old visible
+# bullets back into the same structured shape under a stable "legacy" pseudo-host
+# key so they re-enter the normal merge/render pipeline exactly once and are
+# preserved (and summed with) every future real host's contribution thereafter.
+#
+# Known residual edge case: this only fires when the state comment is missing
+# or unreadable, which after this change should only ever be true for files
+# that predate this feature entirely. If a date is ever deliberately
+# reprocessed (e.g. an old file deleted to force regeneration, or --from
+# targeting a stale date) by the *same* host whose numbers are already baked
+# into that legacy visible total, and that host's Tracker JSON for the old
+# date still happens to exist locally, its contribution gets counted once as
+# "legacy" and again as itself — a one-time, bounded overcount for that date
+# only, not an ongoing drift. Spot-check hours after force-reprocessing an old
+# date for this reason.
+if [[ "$existing_tracker_state" == "{}" && -f "$OUTPUT_FILE" ]] && command -v jq >/dev/null 2>&1; then
+  visible_block_body=$(awk '
+    /^## Time Tracking$/ { intt=1; next }
+    intt && /^## /       { exit }
+    intt && /^\*\*Total tracked:/ { exit }
+    intt { print }
+  ' "$OUTPUT_FILE" 2>/dev/null || true)
+  if [[ -n "$visible_block_body" ]]; then
+    legacy_state=$(printf '%s\n' "$visible_block_body" | jq -R -s --arg host "legacy" '
+      def ws_key($h): {"Engineering / R&D":"engineering","SR&ED":"sred","Client":"client"}[$h] // $h;
+      def s_of($t): ($t | capture("^(?<h>[0-9]+):(?<m>[0-9]{2})$")) as $c
+                    | (($c.h | tonumber) * 3600 + ($c.m | tonumber) * 60);
+      ( split("\n")
+        | reduce .[] as $line ({state: {}, ws: null};
+            if ($line | test("^### ")) then
+              .ws = ($line | sub("^### "; "") | ws_key(.))
+            elif ($line | test("^- \\*\\*\\[")) then
+              ($line | capture(
+                "^- \\*\\*\\[(?<code>[^\\]]+)\\] (?<name>.+)\\*\\* — (?<dur>[0-9]+:[0-9]{2})(?: — (?<desc>.+?))?(?: \\((?<client>[^()]+)\\))?$"
+              )) as $c
+              | .state[$c.code][$c.name] = {
+                  code: $c.code,
+                  name: $c.name,
+                  workstream: .ws,
+                  description: ($c.desc // ""),
+                  client: ($c.client // ""),
+                  by: {($host): s_of($c.dur)}
+                }
+            else . end
+          )
+      ).state
+    ' 2>/dev/null || echo "{}")
+    [[ -n "$legacy_state" ]] && existing_tracker_state="$legacy_state"
   fi
 fi
 
@@ -131,7 +197,7 @@ if command -v jq >/dev/null 2>&1; then
     ( "**Total tracked:** " + hm(($entries | map([.by[]] | add) | add) // 0) ),
     "",
     "<!-- tracker-state",
-    ($state | tostring),
+    ($state | tostring | @base64),
     "tracker-state -->"
     end
   ' 2>/dev/null || true)

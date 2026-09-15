@@ -1,6 +1,6 @@
 ---
 name: xpquest-daily-log
-description: Generate XP Quest daily_log and sred_daily_log (and, when the Time Tracker shows client work, a per-client client_daily_log) by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or with [--from DATE] [--to DATE] for a range. Skips dates already enriched; delete the file to force regeneration.
+description: Generate XP Quest daily_log and sred_daily_log (and, when the Time Tracker shows client work, a per-client client_daily_log) by merging git summaries, issue bodies, and Claude session history. Run as /xpquest-daily-log [YYYY-MM-DD] for one date, or with [--from DATE] [--to DATE] for a range. Merges new host-local evidence into existing enriched dates when present.
 ---
 
 # xpquest-daily-log
