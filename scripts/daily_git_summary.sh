@@ -79,8 +79,15 @@ HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
 existing_tracker_state="{}"
 if [[ -f "$OUTPUT_FILE" ]]; then
   extracted=$(sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$OUTPUT_FILE" | sed '1d;$d')
-  if [[ -n "$extracted" ]] && command -v jq >/dev/null 2>&1 && echo "$extracted" | jq empty >/dev/null 2>&1; then
-    existing_tracker_state="$extracted"
+  if [[ -n "$extracted" ]] && command -v jq >/dev/null 2>&1; then
+    if echo "$extracted" | jq empty >/dev/null 2>&1; then
+      existing_tracker_state="$extracted"
+    else
+      decoded=$(printf '%s' "$extracted" | jq -Rr '@base64d' 2>/dev/null || true)
+      if [[ -n "$decoded" ]] && echo "$decoded" | jq empty >/dev/null 2>&1; then
+        existing_tracker_state="$decoded"
+      fi
+    fi
   fi
 fi
 
@@ -131,7 +138,7 @@ if command -v jq >/dev/null 2>&1; then
     ( "**Total tracked:** " + hm(($entries | map([.by[]] | add) | add) // 0) ),
     "",
     "<!-- tracker-state",
-    ($state | tostring),
+    ($state | tostring | @base64),
     "tracker-state -->"
     end
   ' 2>/dev/null || true)

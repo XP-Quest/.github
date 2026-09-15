@@ -100,6 +100,14 @@ summary_out() {
   printf '%s' "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
+tracker_state_payload() {
+  sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$(summary_out)" | sed '1d;$d'
+}
+
+tracker_state_json() {
+  printf '%s' "$(tracker_state_payload)" | base64 --decode
+}
+
 # ---------------------------------------------------------------------------
 # Basic behaviour
 # ---------------------------------------------------------------------------
@@ -550,7 +558,7 @@ summary_out() {
   XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
 
   grep -q "tracker-state" "$(summary_out)"
-  grep -q '"flash"' "$(summary_out)"
+  grep -q '"flash"' <(tracker_state_json)
   # The rendered bullet itself never names the device — merged content stays
   # organized by section/project, not partitioned by machine.
   run grep -F -- '- **[xpq-eng]' "$(summary_out)"
@@ -564,7 +572,18 @@ summary_out() {
 
   local host_lower
   host_lower=$(hostname | tr '[:upper:]' '[:lower:]')
-  grep -qF "\"${host_lower}\"" "$(summary_out)"
+  grep -qF "\"${host_lower}\"" <(tracker_state_json)
+}
+
+@test "Merge: tracker-state payload is encoded so '-->' in values cannot break the HTML comment" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"alpha --> omega","seconds":60}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  run tracker_state_payload
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"-->"* ]]
+  grep -q '"alpha --> omega"' <(tracker_state_json)
 }
 
 # ---------------------------------------------------------------------------
