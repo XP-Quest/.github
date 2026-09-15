@@ -52,30 +52,89 @@ else
   summary_json=$(ls -t /mnt/c/Users/*/.xpquest/"${DATE_FILE}" 2>/dev/null | head -1 || true)
 fi
 
-# Prettify it into a human-readable Markdown block (grouped by workstream) here,
-# locally — so the daily-log skill can copy it through without parsing JSON itself.
-# Days with no summary file leave this empty and time is simply omitted.
-time_summary_block=""
+# Identify this machine for cross-host Time Tracking merge (see below). Robin runs
+# antman and flash, never simultaneously, and neither the Tracker JSON nor Claude
+# session transcripts are synced between them (see XP-Quest/.github#41) — the
+# shared OneDrive Daily-Logs output is the only thing both machines see, so it is
+# also where their per-host contributions get reconciled. Override with
+# XPQUEST_HOST_ID if a machine's `hostname` ever isn't a stable/desired label.
+HOST_ID="${XPQUEST_HOST_ID:-$(hostname 2>/dev/null || true)}"
+HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
+
+# Prettify the Time Tracker data into a human-readable Markdown block (grouped by
+# workstream) here, locally — so the daily-log skill can copy it through without
+# parsing JSON itself. Days with no summary file anywhere leave this empty and
+# time is simply omitted.
+#
+# Cross-host merge: OUTPUT_FILE lives in the shared OneDrive Daily-Logs folder, so
+# a prior run (from either machine) may already have written a '## Time Tracking'
+# block for this date. Re-derive the per-project state from that block's hidden
+# `tracker-state` comment (code+name -> {..., by: {host: seconds}}), fold in this
+# host's current projects (replacing only this host's own prior contribution per
+# project, which is what keeps a same-host re-run idempotent), and re-render. The
+# visible block stays organized purely by workstream/project — never by machine —
+# per Robin's instruction that merged content lives in the same sections rather
+# than being partitioned by device; only the invisible state comment tracks host
+# attribution, and it is never shown to the skill or to Robin as a rendered line.
+existing_tracker_state="{}"
+if [[ -f "$OUTPUT_FILE" ]]; then
+  extracted=$(sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$OUTPUT_FILE" | sed '1d;$d')
+  if [[ -n "$extracted" ]] && command -v jq >/dev/null 2>&1 && echo "$extracted" | jq empty >/dev/null 2>&1; then
+    existing_tracker_state="$extracted"
+  fi
+fi
+
+local_projects="[]"
 if [[ -n "$summary_json" && -f "$summary_json" ]] && command -v jq >/dev/null 2>&1; then
-  time_summary_block=$(jq -r '
+  local_projects=$(jq -c '.projects // []' "$summary_json" 2>/dev/null || echo "[]")
+fi
+
+time_summary_block=""
+if command -v jq >/dev/null 2>&1; then
+  merged_tracker_state=$(jq -c -n \
+    --argjson existing "$existing_tracker_state" \
+    --argjson local "$local_projects" \
+    --arg host "$HOST_ID" '
+    reduce ($local[]) as $p ($existing;
+      .[$p.code][$p.name] = {
+        code: $p.code,
+        name: $p.name,
+        workstream: $p.workstream,
+        description: ($p.description // ""),
+        client: ($p.client // ""),
+        by: (((.[$p.code][$p.name].by) // {}) + {($host): $p.seconds})
+      }
+    )
+  ' 2>/dev/null || echo "$existing_tracker_state")
+
+  time_summary_block=$(jq -r -n --argjson state "$merged_tracker_state" '
     def hm($s): ($s/60|floor) as $m | "\($m/60|floor):\((($m%60)|tostring|("0"+.)[-2:]))";
     def wsname($w): {"engineering":"Engineering / R&D","sred":"SR&ED","client":"Client"}[$w] // $w;
     def rank($w): {"engineering":0,"sred":1,"client":2}[$w] // 3;
+    ([$state[][]]) as $entries |
+    if ($entries | length) == 0 then empty else
     "## Time Tracking",
     "",
-    ( .projects
+    ( $entries
       | group_by(.workstream)
       | sort_by(.[0].workstream | rank(.))
       | .[]
       | ( "### " + wsname(.[0].workstream) ),
         "",
-        ( .[] | "- **[\(.code)] \(.name)** — \(hm(.seconds))"
-                + (if (.description // "") != "" then " — \(.description)" else "" end)
-                + (if (.client // "") != "" then " (\(.client))" else "" end) ),
+        ( sort_by(.code, .name)[]
+          | . + {total: ([.by[]] | add)}
+          | "- **[\(.code)] \(.name)** — \(hm(.total))"
+                + (if .description != "" then " — \(.description)" else "" end)
+                + (if .client != "" then " (\(.client))" else "" end) ),
         ""
     ),
-    ( "**Total tracked:** " + hm(([.projects[].seconds] | add) // 0) )
-  ' "$summary_json" 2>/dev/null || true)
+    ( "**Total tracked:** " + hm(($entries | map([.by[]] | add) | add) // 0) ),
+    "",
+    "<!-- tracker-state",
+    ($state | tostring),
+    "tracker-state -->"
+    end
+  ' 2>/dev/null || true)
 fi
 
 # Cache issue titles and labels together (one `gh` call each): key="<org/repo>:<issue>".
@@ -273,6 +332,17 @@ if [[ ${#sections[@]} -gt 0 || ${#untracked_lines[@]} -gt 0 || -n "$time_summary
   } > "$OUTPUT_FILE"
 fi
 
+# DAILY_LOG_FILE starts life as this script's own commit-only draft (marked with
+# the "Session transcripts not included" sentinel below) and is later replaced by
+# the xpquest-daily-log skill's fully enriched version, which folds in session
+# content, SR&ED narrative, etc. and drops the sentinel. Because DAILY_LOG_FILE
+# also lives in the shared OneDrive Daily-Logs folder, a second machine calling
+# this script for the same date (e.g. via historical_git_summary.sh advancing its
+# own checkpoint) must never regenerate the draft over an already-enriched file —
+# that would silently discard everything the skill added. Only (re)write the
+# draft while the file is still in draft form (missing, or still carrying the
+# sentinel); once enriched, this script leaves it alone.
+if [[ ! -f "$DAILY_LOG_FILE" ]] || grep -q "Session transcripts not included" "$DAILY_LOG_FILE"; then
 {
   echo "# XP Quest — Daily Log — ${TARGET_DATE}"
   echo ""
@@ -311,3 +381,4 @@ fi
   echo "---"
   echo "*Session transcripts not included — run \`xpquest-daily-log\` skill manually if needed.*"
 } > "$DAILY_LOG_FILE"
+fi
