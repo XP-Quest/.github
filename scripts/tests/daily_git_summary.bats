@@ -100,6 +100,13 @@ summary_out() {
   printf '%s' "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
+# Decoded JSON body of the hidden tracker-state comment in the given file
+# (default: this date's github summary). Empty if no comment is present.
+tracker_state_json() {
+  local file="${1:-$(summary_out)}"
+  sed -n '/<!-- tracker-state$/,/^tracker-state -->/p' "$file" | sed '1d;$d' | base64 -d 2>/dev/null || true
+}
+
 # ---------------------------------------------------------------------------
 # Basic behaviour
 # ---------------------------------------------------------------------------
@@ -550,11 +557,95 @@ summary_out() {
   XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
 
   grep -q "tracker-state" "$(summary_out)"
-  grep -q '"flash"' "$(summary_out)"
-  # The rendered bullet itself never names the device — merged content stays
-  # organized by section/project, not partitioned by machine.
+  run tracker_state_json
+  [[ "$output" == *'"flash"'* ]]
+  # The comment itself is base64, so "flash" can't leak into the rendered file
+  # unencoded either way — but assert the point explicitly: no visible bullet
+  # names the device. Merged content stays organized by section/project, not
+  # partitioned by machine.
   run grep -F -- '- **[xpq-eng]' "$(summary_out)"
   [[ "$output" != *"flash"* ]]
+}
+
+@test "Merge: the tracker-state comment is base64, not raw JSON (never breakable by '-->' in tracked data)" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Weird --> name","seconds":60}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  # The visible bullet legitimately renders the project name as-is (harmless,
+  # not inside a comment) — the thing that must never happen is the hidden
+  # state's own closing marker being reachable early. Assert only one line in
+  # the whole file matches the closing-marker anchor pattern used to extract it.
+  run grep -cE -- '^tracker-state -->$' "$(summary_out)"
+  [ "$output" -eq 1 ]
+
+  # The state still round-trips correctly through base64, including the '-->'
+  # inside the tracked name — proves encoding, not escaping, is doing the work.
+  run tracker_state_json
+  [[ "$output" == *"Weird --> name"* ]]
+
+  # A second run must still find and decode the same state cleanly (extraction
+  # isn't confused by the '-->' that legitimately appears earlier in the file).
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"Weird --> name","seconds":120}]}'
+  bash "$SCRIPT" "$TEST_DATE"
+  grep -qxF -- '- **[xpq-eng] Weird --> name** — 0:02' "$(summary_out)"
+}
+
+@test "Merge: a pre-existing visible Time Tracking block with no hidden state is migrated, not dropped" {
+  # Simulates a github_summary-DATE.md written before the tracker-state comment
+  # existed: a real '## Time Tracking' block, no hidden comment. A later run
+  # from a host with no local Tracker JSON for this date, but that DOES have a
+  # commit (so the file gets rewritten for another reason), must not silently
+  # lose these pre-existing hours.
+  mkdir -p "$OUTPUT_DIR"
+  cat > "$(summary_out)" <<'EOF'
+# XP Quest - GitHub Commit Summary — 2026-01-15
+
+## Time Tracking
+
+### Engineering / R&D
+
+- **[xpq-eng] XP Quest engineering** — 0:03 (XP Quest)
+
+### Client
+
+- **[em-scotia-1] Scotia Mobile Loyalty Platform** — 6:37 (Electric Mind)
+
+**Total tracked:** 6:40
+EOF
+
+  make_repo "testrepo"
+  make_commit "#42: unrelated commit that forces a rewrite"
+  # No widget summary for this run — this host has no local Tracker JSON for the date.
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:03 (XP Quest)' "$(summary_out)"
+  grep -qxF -- '- **[em-scotia-1] Scotia Mobile Loyalty Platform** — 6:37 (Electric Mind)' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 6:40' "$(summary_out)"
+  grep -q "tracker-state" "$(summary_out)"
+}
+
+@test "Merge: a migrated legacy block still sums correctly once a real host contributes to the same code+name" {
+  mkdir -p "$OUTPUT_DIR"
+  cat > "$(summary_out)" <<'EOF'
+# XP Quest - GitHub Commit Summary — 2026-01-15
+
+## Time Tracking
+
+### Engineering / R&D
+
+- **[xpq-eng] XP Quest engineering** — 0:30
+
+**Total tracked:** 0:30
+EOF
+
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":3600}]}'
+  XPQUEST_HOST_ID=antman bash "$SCRIPT" "$TEST_DATE"
+
+  # 1800s (legacy) + 3600s (antman) = 5400s = 1:30
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 1:30' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 1:30' "$(summary_out)"
 }
 
 @test "Merge: default host id falls back to the real hostname, lowercased" {
@@ -564,7 +655,8 @@ summary_out() {
 
   local host_lower
   host_lower=$(hostname | tr '[:upper:]' '[:lower:]')
-  grep -qF "\"${host_lower}\"" "$(summary_out)"
+  run tracker_state_json
+  [[ "$output" == *"\"${host_lower}\""* ]]
 }
 
 # ---------------------------------------------------------------------------
