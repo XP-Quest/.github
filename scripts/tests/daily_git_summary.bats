@@ -16,6 +16,8 @@ bats_require_minimum_version 1.5.0
 #   SEARCH_ROOT          — directory tree searched for git repos
 #   OUTPUT_DIR           — where the markdown summary file is written
 #   XPQUEST_SUMMARY_DIR  — Time Tracker daily-summary-<DATE>.json lookup override
+#   XPQUEST_HOST_ID      — overrides the `hostname`-derived label used to attribute this
+#                          run's Time Tracking contribution for cross-host merge (#41)
 #   MEETINGS_DIR         — meeting-notes directory
 #   HOME                 — redirected so the $HOME/.xpquest summary fallback is hermetic
 
@@ -473,4 +475,151 @@ summary_out() {
   bash "$SCRIPT" "$TEST_DATE"
 
   grep -q "HOMEFALLBACK" "$(summary_out)"
+}
+
+# ---------------------------------------------------------------------------
+# Multi-machine Time Tracking merge — OUTPUT_FILE lives in the shared OneDrive
+# Daily-Logs folder, so a second host's run must accumulate onto whatever a
+# prior host already wrote there rather than overwrite it. See XP-Quest/.github#41.
+# ---------------------------------------------------------------------------
+
+@test "Merge: a second host's run sums seconds for the same code+name into one line" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":1800}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:30' "$(summary_out)"
+
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":3600}]}'
+  XPQUEST_HOST_ID=antman bash "$SCRIPT" "$TEST_DATE"
+
+  # One merged line at 1800+3600s = 1:30, not two separate lines.
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 1:30' "$(summary_out)"
+  run grep -cF -- '[xpq-eng] XP Quest engineering' "$(summary_out)"
+  [ "$output" -eq 1 ]
+  grep -qF -- '**Total tracked:** 1:30' "$(summary_out)"
+}
+
+@test "Merge: re-running the same host with unchanged hours does not double-count" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":1800}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:30' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 0:30' "$(summary_out)"
+}
+
+@test "Merge: same host's changed hours replace (not add to) its own prior contribution" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":1800}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  # Same host, same code+name, updated (grown) seconds — replaces, not adds.
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":3600}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 1:00' "$(summary_out)"
+}
+
+@test "Merge: a code+name unique to one host is preserved when the other host contributes different work" {
+  write_widget_summary '{"projects":[{"workstream":"sred","code":"xpq-sred","name":"Research","seconds":900}]}'
+  XPQUEST_HOST_ID=antman bash "$SCRIPT" "$TEST_DATE"
+
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":1800}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-sred] Research** — 0:15' "$(summary_out)"
+  grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:30' "$(summary_out)"
+  grep -qF -- '**Total tracked:** 0:45' "$(summary_out)"
+}
+
+@test "Merge: the same code with different names from a single run stays two distinct lines" {
+  # Not a cross-host scenario — the join key is code+name together, so two
+  # genuinely different projects that happen to reuse a code are never conflated.
+  write_widget_summary '{"projects":[
+    {"workstream":"engineering","code":"xpq-eng","name":"OneMinPast","seconds":3660},
+    {"workstream":"engineering","code":"xpq-eng","name":"QuarterHour","seconds":1500}
+  ]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -qxF -- '- **[xpq-eng] OneMinPast** — 1:01' "$(summary_out)"
+  grep -qxF -- '- **[xpq-eng] QuarterHour** — 0:25' "$(summary_out)"
+}
+
+@test "Merge: the hidden tracker-state comment carries host attribution but no host name appears in a visible bullet" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"XP Quest engineering","seconds":1800}]}'
+  XPQUEST_HOST_ID=flash bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "tracker-state" "$(summary_out)"
+  grep -q '"flash"' "$(summary_out)"
+  # The rendered bullet itself never names the device — merged content stays
+  # organized by section/project, not partitioned by machine.
+  run grep -F -- '- **[xpq-eng]' "$(summary_out)"
+  [[ "$output" != *"flash"* ]]
+}
+
+@test "Merge: default host id falls back to the real hostname, lowercased" {
+  write_widget_summary '{"projects":[{"workstream":"engineering","code":"xpq-eng","name":"x","seconds":60}]}'
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  local host_lower
+  host_lower=$(hostname | tr '[:upper:]' '[:lower:]')
+  grep -qF "\"${host_lower}\"" "$(summary_out)"
+}
+
+# ---------------------------------------------------------------------------
+# daily_log-DATE.md starter draft — must never regress an already-enriched log.
+# DAILY_LOG_FILE lives in the shared OneDrive Daily-Logs folder; a second host
+# calling this script for an already-enriched date (skill Step 9 output, no
+# longer carrying the starter sentinel) must leave it untouched.
+# ---------------------------------------------------------------------------
+
+daily_log_out() {
+  printf '%s' "$OUTPUT_DIR/daily_log-${TEST_DATE}.md"
+}
+
+@test "Starter log: written fresh when no daily_log file exists yet" {
+  make_repo "testrepo"
+  make_commit "#42: some work"
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  [ -f "$(daily_log_out)" ]
+  grep -q "Session transcripts not included" "$(daily_log_out)"
+}
+
+@test "Starter log: regenerated while still in draft form (sentinel present)" {
+  make_repo "testrepo"
+  make_commit "#42: first commit"
+  bash "$SCRIPT" "$TEST_DATE"
+
+  make_commit "#42: second commit"
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "second commit" "$(daily_log_out)"
+  grep -q "Session transcripts not included" "$(daily_log_out)"
+}
+
+@test "Starter log: an already-enriched file (sentinel absent) is left untouched" {
+  mkdir -p "$OUTPUT_DIR"
+  cat > "$(daily_log_out)" <<'EOF'
+# XP Quest — Daily Log — 2026-01-15
+
+**Summary:** enriched by the skill, including session content.
+
+## Engineering / R&D
+
+- **testrepo** [#42: some work](https://github.com/XP-Quest/testrepo/issues/42)
+  - `abc1234`: first commit
+  - session bullet from the skill
+EOF
+  local before
+  before=$(cat "$(daily_log_out)")
+
+  make_repo "testrepo"
+  make_commit "#42: a brand new commit that would appear in a regenerated draft"
+  bash "$SCRIPT" "$TEST_DATE"
+
+  [ "$(cat "$(daily_log_out)")" = "$before" ]
+  run ! grep -q "brand new commit" "$(daily_log_out)"
 }

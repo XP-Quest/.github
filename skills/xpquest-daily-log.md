@@ -99,17 +99,32 @@ GITHUB_SUMMARY="${LOGS_DIR}/github_summary-${DATE}.md"
 
 ## Step 2: Check enrichment status
 
-For each DATE, check whether enrichment is needed before doing any Claude work:
+`Daily-Logs/` lives in the shared OneDrive folder both machines read and write (see
+XP-Quest/.github#41), but the Time Tracker JSON and Claude session transcripts that feed it
+do **not** — each machine only ever sees its own. So a date already enriched by one machine
+is not necessarily complete: the other machine may hold session evidence for that same date
+that has never been folded in. Never sync those raw per-machine inputs to make them mutually
+visible — the shared output files are the accumulation point, not the inputs (Robin's call,
+2026-09-15: syncing raw JSON/jsonl wasn't worth building; a solid merge on read is enough).
 
-- Skip if `daily_log-DATE.md` exists **and** does not contain `"Session transcripts not included"`
-  **and** (no SR&ED content was classified for this date OR `sred_daily_log-DATE.md` exists) —
-  it has been enriched; mark as `exists` and move on.
-- Proceed if the daily log is missing, contains the bash-only-draft marker, or contains
-  SR&ED-eligible content but the companion `sred_daily_log-DATE.md` is missing. The last case
-  catches dates that were enriched before SR&ED extraction was implemented or where the
-  SR&ED log was deleted to force regeneration.
+For each DATE, classify status before doing any Claude work:
 
-Print `=== Processing DATE ===` before each date that requires enrichment.
+- **missing / starter** — `daily_log-DATE.md` doesn't exist, or still contains
+  `"Session transcripts not included"`. Proceed in **fresh** mode (Step 9/10/11 write the
+  file from scratch, as today).
+- **enriched, SR&ED gap** — `daily_log-DATE.md` is enriched but classifies SR&ED-eligible
+  content while `sred_daily_log-DATE.md` is missing. Proceed in fresh mode for the SR&ED log
+  only (Step 10); the daily log itself still goes through the merge check below, since this
+  case can co-occur with new session evidence from this host.
+- **enriched, no gap** — run Step 5 (session digest) for this host now. If it prints nothing,
+  this host has no local evidence not already reflected — git commits and Time Tracking are
+  already host-independent by the time they reach this skill (daily_git_summary.sh
+  cross-host-merges Time Tracking itself; commits are identical from any host that has
+  fetched), so there is nothing left this host could add. Mark `exists` and move on. If it
+  prints session content, proceed in **merge** mode (Step 9/10/11 read-then-add-delta, never
+  a full `Write`).
+
+Print `=== Processing DATE ===` before each date that requires fresh or merge-mode work.
 
 ---
 
@@ -249,7 +264,29 @@ Apply WP classification to all content (commits, issue bodies, session bullets):
 
 If zero content (no commits, no sessions, no meetings) → print "Nothing to log for DATE" and skip.
 
-Otherwise write `$DAILY_LOG`:
+**Merge mode** (Step 2 classified this date `enriched, no gap` with new session content — a
+second machine adding to a date the first machine already wrote): do not `Write` a fresh file.
+`Read` the existing `$DAILY_LOG` first, then use `Edit` to add only what this host's evidence
+(Step 5's session digest, plus any commit not already present verbatim — see Step 2) contributes
+that is not already there:
+
+- Dedup commits by SHA already appearing in the file; dedup session bullets by the session file
+  path from Step 5's `--- path` header or by clear overlap with an existing bullet's text.
+- Insert new bullets **into the existing matching group** — under the same `**repo**
+  [#NN: ...]` issue block if one is already present, or as a new issue block appended within
+  its existing section (`## Engineering / R&D`, `## SR&ED Activity`, etc.) if not. Follow
+  Robin's instruction: merged content stays organized **by section/issue, the same way a
+  single-machine run would organize it** — never partitioned into a device-specific block
+  (no "## From flash" / "## Antman's additions").
+- If a section the new content belongs in doesn't exist yet in the file, add it in its normal
+  template position (Step 9's section order below), not appended at the end out of order.
+- Never remove, reorder, or rewrite content that's already there. Leave the `**Summary:**` line
+  as-is unless the new evidence changes the day's overall focus enough to be misleading, in
+  which case extend it with a short clause rather than rewriting it wholesale.
+- If, after dedup, there is nothing left to add, skip silently — this is the idempotent no-op
+  case (e.g. the same host re-running with no new evidence).
+
+**Fresh mode** (missing, starter, or first enrichment): write `$DAILY_LOG`:
 
 ```markdown
 # XP Quest — Daily Log — DATE
@@ -295,7 +332,24 @@ Save with Write tool.
 
 Skip if no SR&ED content found.
 
-Otherwise write `$SRED_LOG`, grouping by WP with `---` between blocks:
+**Merge mode**: `Read` the existing `$SRED_LOG` first, then `Edit` in only the delta — same
+dedup rule as Step 9 (by SHA / session path). Two things are load-bearing here:
+
+- **Never overwrite a qualitative field Robin has already filled in** — `Technological
+  Uncertainty`, `Hypothesis`, `Outcome / Result`, `Advancement of Knowledge`. If a field still
+  literally reads `[fill in]`, leave it that way; it is still pending his input, not "safe to
+  invent because it's a placeholder." These fields are primary claim narrative evidence — see
+  CLAUDE.md §10's note on contemporaneous documentation — and a merge run silently clobbering
+  Robin's own words would be far worse than the skip-on-overwrite bug this feature replaces.
+- **Work Performed** and **Supporting Evidence** are additive lists — append new bullets not
+  already present, in place, same as Step 9.
+- **Hours Logged** is machine-derived (from the Step 7 SR&ED Time Tracking bullets, which
+  `daily_git_summary.sh` already cross-host-sums) — safe to refresh even in merge mode if the
+  merged total changed.
+
+If no new WP block or bullet survives dedup, skip silently.
+
+**Fresh mode**: write `$SRED_LOG`, grouping by WP with `---` between blocks:
 
 ```markdown
 # XP Quest — SR&ED Daily Log — DATE
@@ -343,7 +397,14 @@ Save with Write tool.
 
 Client work is NOT XP Quest R&D and must never appear in the daily or SR&ED logs — it is
 logged separately for billing/record-keeping. Build this from the `### Client` subsection of
-the `## Time Tracking` block (Step 7).
+the `## Time Tracking` block (Step 7). That block is already cross-host-summed per client
+`code` by `daily_git_summary.sh` (see XP-Quest/.github#41), so client hour lines need no
+extra host-merge handling here.
+
+**Merge mode**: `Read` the existing per-client `client_daily_log-DATE.md` first (if it
+exists) and `Edit` in only bullets not already present verbatim — same additive, no-overwrite
+approach as Steps 9/10. If a client subfolder/file this host's data belongs in doesn't exist
+yet, create it as in fresh mode.
 
 If there is no `### Client` subsection for the date → skip; write nothing.
 
@@ -388,9 +449,9 @@ Print per date:
 
 ```text
 Date:       DATE
-Daily log:  created | enriched | skipped (no content) | exists (already enriched) — path
-SR&ED log:  created | skipped (no SR&ED content) | exists — path
-Client log: created (per client) | skipped (no client work) — path(s)
+Daily log:  created | merged (+N bullets) | skipped (no content) | exists (already enriched, nothing new) — path
+SR&ED log:  created | merged (+N bullets) | skipped (no SR&ED content) | exists — path
+Client log: created (per client) | merged (per client) | skipped (no client work) — path(s)
 Sessions:   N found, M relevant
 Commits:    N tracked, M SR&ED
 Tracker:    Total tracked from the Time Tracking block, or "no time tracked"

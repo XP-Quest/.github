@@ -217,6 +217,45 @@ Recommended minimum:
 
 If using a tool (Toggl, Harvest, etc.), put the issue number in the description so time entries map back to research issues cleanly at claim time.
 
+(Superseded: the journal/ approach above was replaced by the XP Quest Time Tracker widget +
+`daily_git_summary.sh` + the `xpquest-daily-log` skill — see the workspace CLAUDE.md §6 for the
+current pipeline.)
+
+## Multi-machine daily-log merge
+
+Robin develops on two machines (desktop **antman**, laptop **flash**, never simultaneously).
+Both can accumulate Time Tracker hours and Claude session transcripts for the same calendar
+date. Neither of those raw, per-machine inputs is synced between machines — that was
+evaluated and deliberately skipped (2026-09-15): building sync infrastructure for Tracker
+JSON and `.jsonl` transcripts wasn't worth it when the outputs already are shared.
+
+The merge instead happens at the **shared output layer**. `Daily-Logs/` lives in OneDrive and
+is the one thing both machines read and write for a given date:
+
+- **Time Tracking hours**: `daily_git_summary.sh` reads back the `tracker-state` it hid in a
+  comment at the end of the existing `github_summary-DATE.md` (keyed by project code + name,
+  recording each host's last-known seconds), folds in this machine's current Tracker JSON —
+  replacing only this host's own prior entry, which is what keeps a same-host re-run
+  idempotent — and re-sums. The visible `## Time Tracking` block is never partitioned by
+  device; it stays organized purely by workstream/project, identical in shape to a
+  single-machine run. See `XPQUEST_HOST_ID` in the script if a machine's `hostname` output
+  ever needs overriding.
+- **Session content, commits, SR&ED narrative**: the `xpquest-daily-log` skill never
+  regenerates an already-enriched `daily_log-DATE.md` / `sred_daily_log-DATE.md` /
+  `client_daily_log-DATE.md` wholesale. It reads the existing file, computes this host's
+  delta (new session bullets this host can see locally; any commit not already present), and
+  adds only that delta **into the existing sections** — never into a device-specific block.
+  Hand-filled SR&ED qualitative fields (`Technological Uncertainty`, `Hypothesis`, `Outcome /
+  Result`, `Advancement of Knowledge`) are never touched by a merge run; only `[fill in]`
+  placeholders Robin hasn't yet replaced are left as-is, everything else he's written is
+  permanent once saved.
+- **Commits**: recomputed fresh every run from `--branches --tags --remotes`, so they come out
+  identical regardless of which machine runs the script, provided both have fetched — no
+  merge bookkeeping needed there.
+
+See XP-Quest/.github#41 for the design history and `scripts/tests/daily_git_summary.bats`
+("Merge:" and "Starter log:" test groups) for the behavioral contract this rests on.
+
 ## Board structure
 
 Two GitHub Projects at the org level:
