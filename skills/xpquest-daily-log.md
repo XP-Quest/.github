@@ -32,13 +32,15 @@ a section is always better than inventing it. This is especially critical in SR&
   the evidence, leave it out; do not fill it in from memory, from another day's file, or by
   typing it directly into a bash/python heredoc. This includes backfills: a backfill script
   must re-derive every field per date, never reuse one date's values for others.
-- **Never write client-identifying information into any git-tracked file, in this or any other
-  XP-Quest repo.** `xpq-org`, `xpq-web`, `xpq-api`, `xpq-infra`, and `rdcoe/timetracking` are
-  all public or semi-public. Real client names, project descriptions, or codes must never
-  appear in source code, test fixtures, comments, commit messages, issue bodies, or PR
-  descriptions — use a generic placeholder (`acme-corp`) instead. Client work output stays
+- **Never write client-identifying information anywhere in a public-facing XP-Quest repo —
+  git-tracked content or GitHub metadata.** `xpq-org`, `xpq-web`, `xpq-api`, `xpq-infra`, and
+  `rdcoe/timetracking` are all public or semi-public. That covers two distinct categories: (1)
+  git-tracked content — source code, test fixtures, comments, commit messages — and (2)
+  GitHub-hosted metadata that isn't part of the git history at all — issue bodies, PR
+  descriptions, review comments. Real client names, project descriptions, or codes must never
+  appear in either — use a generic placeholder (`acme-corp`) instead. Client work output stays
   exclusively under `Daily-Logs/<Client>/` in the OneDrive-backed workspace (Step 11), which is
-  outside git entirely.
+  outside both git and GitHub entirely.
 
 These two rules exist because per-device Claude memory does not sync across machines — an
 equivalent rule existed in only one device's memory and was silently absent everywhere else,

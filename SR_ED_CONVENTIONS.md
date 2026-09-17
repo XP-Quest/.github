@@ -276,12 +276,15 @@ in `scripts/tests/daily_git_summary.bats` (see XP-Quest/.github#49 for both fixe
    hours) programmatically from that run's actual evidence source — never a literal typed or
    copied in from another day, another file, or an earlier conversation. If the evidence
    source doesn't carry a field, leave it blank; don't backfill it by hand inside a script.
-2. **No client-identifying data in any git-tracked file, ever.** Not in code, test fixtures,
-   comments, commit messages, issue bodies, or PR descriptions — `.github`, `xpq-web`,
-   `xpq-api`, `xpq-infra`, and `rdcoe/timetracking` are all public or semi-public. Client work
-   product (names, descriptions, hours) lives exclusively under `Daily-Logs/<Client>/` in the
-   OneDrive-backed workspace, never in a repo. Tests and examples use a generic placeholder
-   (`acme-corp`), never a real client name.
+2. **No client-identifying data anywhere in a public-facing XP-Quest repo — git-tracked
+   content or GitHub metadata.** `.github`, `xpq-web`, `xpq-api`, `xpq-infra`, and
+   `rdcoe/timetracking` are all public or semi-public. That covers two distinct categories:
+   (1) git-tracked content — code, test fixtures, comments, commit messages — and (2)
+   GitHub-hosted metadata that isn't part of the git history at all — issue bodies, PR
+   descriptions, review comments. Client work product (names, descriptions, hours) lives
+   exclusively under `Daily-Logs/<Client>/` in the OneDrive-backed workspace, never in a repo
+   or its issue tracker. Tests and examples use a generic placeholder (`acme-corp`), never a
+   real client name.
 
 Both rules are also stated in the `xpquest-daily-log` skill itself, deliberately redundant with
 this doc: per-device Claude memory does not sync across machines, so a rule that lives only in
