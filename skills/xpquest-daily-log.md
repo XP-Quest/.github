@@ -34,13 +34,10 @@ hours and no warning (see XP-Quest/.github#47).
 
 Before calling the script, **ask Robin and block on his answer**:
 
-```text
-Have you exported today's Time Tracker Daily Summary (and any other date(s) in scope)? [y/n]
-```
+    Have you exported the Time Tracker Daily Summary for the date(s) in scope? [y/n]
 
-- If yes, proceed to Step 1.
-- If no (or unanswered), stop here. Tell him to export from the widget first, then re-run the
-  skill. Do not call `historical_git_summary.sh`/`daily_git_summary.sh` until he confirms.
+- If yes (`y`/`yes`), proceed to Step 1.
+- If no, unanswered, or anything else, stop here. Tell him to export from the widget first, then re-run the skill. Do not call `historical_git_summary.sh`/`daily_git_summary.sh` until he confirms.
 
 ---
 
