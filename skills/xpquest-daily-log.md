@@ -24,6 +24,26 @@ a section is always better than inventing it. This is especially critical in SR&
 
 ---
 
+## Step 0: Confirm Time Tracker export
+
+`daily_git_summary.sh` (Step 1) locates Time Tracker hours by looking for
+`daily-summary-DATE.json`, a file the XP Quest Time Tracker widget writes on export. If that
+file is missing for a date in scope, the script does not error — it silently omits the
+`## Time Tracking` block, and the resulting daily/SR&ED logs get generated with no tracked
+hours and no warning (see XP-Quest/.github#47).
+
+Before calling the script, **ask Robin and block on his answer**:
+
+```text
+Have you exported today's Time Tracker Daily Summary (and any other date(s) in scope)? [y/n]
+```
+
+- If yes, proceed to Step 1.
+- If no (or unanswered), stop here. Tell him to export from the widget first, then re-run the
+  skill. Do not call `historical_git_summary.sh`/`daily_git_summary.sh` until he confirms.
+
+---
+
 ## Step 1: Generate git summaries via bash
 
 The bash script handles date range resolution, git history gathering, and checkpoint management.
