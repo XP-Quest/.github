@@ -260,6 +260,37 @@ is the one thing both machines read and write for a given date:
 See XP-Quest/.github#41 for the design history and `scripts/tests/daily_git_summary.bats`
 ("Merge:" and "Starter log:" test groups) for the behavioral contract this rests on.
 
+## Client-work data handling
+
+Two hard rules, added after a 2026-09-09 incident: a Claude Code session backfilling missing
+`client_daily_log` dates wrote a raw bash script that hardcoded a client's project description
+and full client name directly into 19 files, copied from one existing sample file rather than
+derived from the Time Tracker export. The value didn't exist anywhere in the Tracker's data
+model (confirmed by DB inspection — the project's description field is immutable and blank,
+and the app has no code path that ever updates it) — it was authored by the session itself.
+Separately, the real client name and project code had also been committed as test fixture data
+in `scripts/tests/daily_git_summary.bats` (see XP-Quest/.github#49 for both fixes).
+
+1. **No hardcoded business-data literals in any script, ad-hoc or otherwise.** A script that
+   writes to a log, database, or file must derive every value (description, client name,
+   hours) programmatically from that run's actual evidence source — never a literal typed or
+   copied in from another day, another file, or an earlier conversation. If the evidence
+   source doesn't carry a field, leave it blank; don't backfill it by hand inside a script.
+2. **No client-identifying data anywhere in a public-facing XP-Quest repo — git-tracked
+   content or GitHub metadata.** `.github`, `xpq-web`, `xpq-api`, `xpq-infra`, and
+   `rdcoe/timetracking` are all public or semi-public. That covers two distinct categories:
+   (1) git-tracked content — code, test fixtures, comments, commit messages — and (2)
+   GitHub-hosted metadata that isn't part of the git history at all — issue bodies, PR
+   descriptions, review comments. Client work product (names, descriptions, hours) lives
+   exclusively under `Daily-Logs/<Client>/` in the OneDrive-backed workspace, never in a repo
+   or its issue tracker. Tests and examples use a generic placeholder (`acme-corp`), never a
+   real client name.
+
+Both rules are also stated in the `xpquest-daily-log` skill itself, deliberately redundant with
+this doc: per-device Claude memory does not sync across machines, so a rule that lives only in
+one device's memory is invisible on the other. These rules live in git-tracked files precisely
+so a fresh session, on any host, sees them.
+
 ## Board structure
 
 Two GitHub Projects at the org level:

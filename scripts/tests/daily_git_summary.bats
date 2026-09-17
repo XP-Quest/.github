@@ -609,7 +609,7 @@ tracker_state_json() {
 
 ### Client
 
-- **[em-scotia-1] Scotia Mobile Loyalty Platform** — 6:37 (Electric Mind)
+- **[acme-corp-1] Acme Corp Sample Project** — 6:37 (Acme Corp)
 
 **Total tracked:** 6:40
 EOF
@@ -621,7 +621,7 @@ EOF
   bash "$SCRIPT" "$TEST_DATE"
 
   grep -qxF -- '- **[xpq-eng] XP Quest engineering** — 0:03 (XP Quest)' "$(summary_out)"
-  grep -qxF -- '- **[em-scotia-1] Scotia Mobile Loyalty Platform** — 6:37 (Electric Mind)' "$(summary_out)"
+  grep -qxF -- '- **[acme-corp-1] Acme Corp Sample Project** — 6:37 (Acme Corp)' "$(summary_out)"
   grep -qF -- '**Total tracked:** 6:40' "$(summary_out)"
   grep -q "tracker-state" "$(summary_out)"
 }

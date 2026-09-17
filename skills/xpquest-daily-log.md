@@ -22,6 +22,32 @@ anything else → client). This skill reads that block — it never parses the r
 SR&ED fields that cannot be derived from commits, issue bodies, or session content. Omitting
 a section is always better than inventing it. This is especially critical in SR&ED logs.
 
+**Hard rules — never violate, on any machine, in any session (see XP-Quest/.github#49):**
+
+- **Never hardcode a business-data literal (a description, client name, hours value, or any
+  other real-world value) into a script that writes to a log, database, or file.** Every value
+  written by this skill — or by any ad-hoc script written to backfill/patch its output — must
+  be derived programmatically from that run's actual evidence source (the Time Tracking block,
+  git log, issue bodies, session transcripts) at generation time. If a value isn't present in
+  the evidence, leave it out; do not fill it in from memory, from another day's file, or by
+  typing it directly into a bash/python heredoc. This includes backfills: a backfill script
+  must re-derive every field per date, never reuse one date's values for others.
+- **Never write client-identifying information anywhere in a public-facing XP-Quest repo —
+  git-tracked content or GitHub metadata.** `xpq-org`, `xpq-web`, `xpq-api`, `xpq-infra`, and
+  `rdcoe/timetracking` are all public or semi-public. That covers two distinct categories: (1)
+  git-tracked content — source code, test fixtures, comments, commit messages — and (2)
+  GitHub-hosted metadata that isn't part of the git history at all — issue bodies, PR
+  descriptions, review comments. Real client names, project descriptions, or codes must never
+  appear in either — use a generic placeholder (`acme-corp`) instead. Client work output stays
+  exclusively under `Daily-Logs/<Client>/` in the OneDrive-backed workspace (Step 11), which is
+  outside both git and GitHub entirely.
+
+These two rules exist because per-device Claude memory does not sync across machines — an
+equivalent rule existed in only one device's memory and was silently absent everywhere else,
+which is how a 2026-09-09 backfill session hardcoded a client's project description into 19
+files (see #49 for the incident). Putting the rule here, in a file both machines pull from
+git, is the fix.
+
 ---
 
 ## Step 0: Confirm Time Tracker export
@@ -451,10 +477,14 @@ Rules:
   file (`# Client Work — <Client Name> …`) keeps the original, unsanitized name.
 - Populate ONLY from the `### Client` bullets — they already carry code, name, H:MM,
   description, and client on a single line; copy each through verbatim, just regrouped under
-  the client folder/heading.
+  the client folder/heading. Never write a description or client name here that isn't already
+  present in that bullet — see the Hard rules at the top of this skill.
 - Do NOT pull in commits, sessions, or SR&ED narrative — this log is hours + the project's
   own name/description only.
 - Do NOT include any GitHub PAT or credential.
+- This output is never git-tracked (see Hard rules) — `$LOGS_DIR` is the OneDrive workspace,
+  not a repo. Never copy a client bullet, folder name, or description into any git-tracked
+  file (tests, issues, commits, PRs) for illustration or debugging.
 
 Save each with the Write tool.
 
