@@ -27,6 +27,20 @@ Every SR&ED research issue must be tagged to one of these (or "Cross-cutting").
 
 **Engineering Task** — everything else. Explicitly non-SR&ED. Carries an "Area" field and a screening checkbox so the distinction is visible.
 
+## Referencing issues
+
+GitHub resolves a bare `#NN` **against the repository you are writing in**. That makes a bare cross-repo reference worse than a dead link — it is a wrong live one. `#26` written in an xpq-api issue points at `xpq-api#26`, a real and unrelated issue, not the xpq-web issue that was meant. A partial `xpq-web#26`, with no owner, does not autolink at all.
+
+- **Same repo:** `#NN`.
+- **Any other repo:** `XP-Quest/<repo>#NN` — e.g. `XP-Quest/xpq-web#8`, `XP-Quest/xpq-infra#12`.
+
+Applies everywhere the reference is meant to be read as a link: issue bodies, PR titles and bodies, and comments. Epic checklists depend on it in particular — *Epics: many issues, one atomic unit* relies on cross-repo items rendering and ticking across repos, and the owner-qualified form is what makes that work.
+
+Two places the rule deliberately does **not** apply:
+
+- **Commit subjects stay bare.** The `#NNN:` prefix is parsed by `daily_git_summary.sh` against the repo the commit lives in, and a commit is always about its own repo's issue. Rule 3's format is unchanged.
+- **Closing keywords stay same-repo.** GitHub does support `Closes owner/repo#NN`, but the convention never needs it: each repo's own promotion PR closes that repo's issues (see *Epics* and *When issues close*). The `pr-lifecycle` guard enforces this shape — its regex requires `#` directly after the keyword, so an owner-qualified `Closes` would fail the check. If a cross-repo close is ever genuinely needed, widen the guard in the same change rather than working around it.
+
 ## Labels
 
 - `sred` — umbrella label for all SR&ED work. Apply to every SR&ED Research Issue and every Experiment Log Entry. The distinction between a research investigation and an experiment log entry is carried by the issue template (not a separate label), so `sred` alone is sufficient to filter all SR&ED activity in one query.
