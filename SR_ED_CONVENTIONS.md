@@ -35,7 +35,7 @@ GitHub resolves a bare `#NN` **against the repository you are writing in**. That
 - **Any other repo:** `XP-Quest/<repo>#NN` — e.g. `XP-Quest/xpq-web#8`, `XP-Quest/xpq-infra#12`.
 - **This repo is `XP-Quest/.github`, not `xpq-org`.** `xpq-org` is only the local clone directory name (GitHub's org-level health repo must be named `.github`). `XP-Quest/xpq-org#4` points at nothing; write `XP-Quest/.github#4`.
 
-Applies everywhere the reference is meant to be read as a link: issue bodies, PR titles and bodies, and comments. Epic checklists depend on it in particular — *Epics: many issues, one atomic unit* relies on cross-repo items rendering and ticking across repos, and the owner-qualified form is what makes that work.
+Applies everywhere the reference is meant to be read as a link: issue bodies, PR titles and bodies, comments, and commit trailers. Use the same-repo or owner-qualified form above. Epic checklists depend on it in particular — *Epics: many issues, one atomic unit* relies on cross-repo items rendering and ticking across repos, and the owner-qualified form is what makes that work.
 
 Two places the rule deliberately does **not** apply:
 
