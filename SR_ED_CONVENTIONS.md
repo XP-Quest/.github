@@ -31,8 +31,9 @@ Every SR&ED research issue must be tagged to one of these (or "Cross-cutting").
 
 GitHub resolves a bare `#NN` **against the repository you are writing in**. That makes a bare cross-repo reference worse than a dead link — it is a wrong live one. `#26` written in an xpq-api issue points at `xpq-api#26`, a real and unrelated issue, not the xpq-web issue that was meant. A partial `xpq-web#26`, with no owner, does not autolink at all.
 
-- **Same repo:** `#NN`.
+- **Same repo:** `#NN`. Do not qualify a same-repo reference — `XP-Quest/xpq-api#69` inside xpq-api is noise.
 - **Any other repo:** `XP-Quest/<repo>#NN` — e.g. `XP-Quest/xpq-web#8`, `XP-Quest/xpq-infra#12`.
+- **This repo is `XP-Quest/.github`, not `xpq-org`.** `xpq-org` is only the local clone directory name (GitHub's org-level health repo must be named `.github`). `XP-Quest/xpq-org#4` points at nothing; write `XP-Quest/.github#4`.
 
 Applies everywhere the reference is meant to be read as a link: issue bodies, PR titles and bodies, and comments. Epic checklists depend on it in particular — *Epics: many issues, one atomic unit* relies on cross-repo items rendering and ticking across repos, and the owner-qualified form is what makes that work.
 
