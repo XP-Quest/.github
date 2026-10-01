@@ -57,15 +57,18 @@ clone of `XP-Quest/.github` that stays on `main` and is never used for coding (s
 XP-Quest/.github#57). That keeps the code producing claim evidence identical on every machine
 and independent of whatever branch the working `~/xpquest/xpq-org` clone has checked out.
 
-Fast-forward it before doing anything else:
+Fast-forward it before doing anything else. The clone's working tree is kept read-only
+(XP-Quest/.github#65), so a plain `git pull` fails. The update script unlocks it,
+fast-forwards, and relocks it, including when the pull fails:
 
 ```bash
-git -C /home/rcoe/xpquest/.xpq-org-main pull --ff-only --quiet
+bash /home/rcoe/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh
 ```
 
 - If the directory is missing, or `git -C /home/rcoe/xpquest/.xpq-org-main branch --show-current`
   is not `main`, stop and point Robin at the setup in the xpq-org README ("Claude Code skills").
-- If the pull fails (offline, or the clone has local changes), warn Robin with the error and
+- If the script exits 2 (missing clone or not on `main`), treat it like the case above.
+- If the pull fails (exit 1: offline, or the clone has local changes), warn Robin with the error and
   continue on the existing checkout. Note the warning in the Step 12 report.
 - If the pull changed this file (`skills/xpquest-daily-log.md`), this run is still following
   the instructions loaded before the pull — tell Robin and suggest re-invoking the skill.

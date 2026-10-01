@@ -122,6 +122,7 @@ xpq-org/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
 │   ├── branch-cleanup.sh           Delete branches whose work reached main (run by the workflow)
+│   ├── xpq-org-main-update.sh      Unlock → fast-forward → relock the read-only .xpq-org-main clone
 │   ├── prune-local-branches.sh     Delete local branches already on origin/dev or origin/main
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
@@ -134,6 +135,7 @@ xpq-org/
 │       ├── daily_git_summary.bats
 │       ├── historical_git_summary.bats
 │       ├── install-hooks.bats
+│       ├── xpq-org-main-update.bats
 │       ├── prune-local-branches.bats
 │       └── helpers/                Mock gh binary and other test utilities
 │
@@ -239,6 +241,11 @@ the code that produces the daily/SR&ED logs is always reviewed `main`, identical
 machine, and unaffected by whatever branch the working `~/xpquest/xpq-org` clone has checked
 out. The skill's preflight step fast-forwards the clone on every run — no manual pull needed.
 
+The clone's working tree is **read-only** (files and directories; `.git/` excluded) so that
+nothing can drift from `main` by accident (#65). `scripts/xpq-org-main-update.sh` is the only
+update path: it unlocks, runs `git pull --ff-only`, and relocks, even if the pull fails. A
+plain `git pull` in the clone fails by design.
+
 ```text
 ~/.claude/skills/
 └── xpquest-daily-log/
@@ -253,8 +260,14 @@ mkdir -p ~/.claude/skills/xpquest-daily-log
 ln -sfn ~/xpquest/.xpq-org-main/skills/xpquest-daily-log.md ~/.claude/skills/xpquest-daily-log/SKILL.md
 ```
 
-Never edit, branch, or commit in `.xpq-org-main` — a local change blocks the fast-forward
-(the skill warns and runs the stale checkout). Do all work in `~/xpquest/xpq-org`.
+No separate lock step is needed: the skill's first run goes through the update script, which
+leaves the clone locked. To lock straight away, run `bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh --lock`.
+
+To update by hand, run `bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh`. This only
+protects against accidents: `chmod -R u+w` undoes it, so don't.
+
+Never edit, branch, or commit in `.xpq-org-main`. The lock prevents casual edits, and any local
+change would block the fast-forward (the skill warns and runs the stale checkout). Do all work in `~/xpquest/xpq-org`.
 
 Invoke from within a Claude Code session:
 
