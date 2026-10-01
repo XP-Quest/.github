@@ -122,6 +122,7 @@ xpq-org/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
 │   ├── branch-cleanup.sh           Delete branches whose work reached main (run by the workflow)
+│   ├── prune-local-branches.sh     Delete local branches already on origin/dev or origin/main
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
 │   ├── hooks/
@@ -133,6 +134,7 @@ xpq-org/
 │       ├── daily_git_summary.bats
 │       ├── historical_git_summary.bats
 │       ├── install-hooks.bats
+│       ├── prune-local-branches.bats
 │       └── helpers/                Mock gh binary and other test utilities
 │
 ├── skills/
@@ -180,6 +182,29 @@ Subsequent runs (daily, scheduled, or manual):
 ```bash
 bash xpq-org/scripts/historical_git_summary.sh
 ```
+
+### `prune-local-branches.sh [--dry-run] [--include-current] [--root DIR] [REPO ...]`
+
+Deletes **local** branches whose work is already integrated, in every clone under `~/xpquest`
+(hidden clones such as `.xpq-org-main` are skipped). `branch-cleanup.yml` handles the remote
+side once work reaches `main`. This covers your clones, so `git branch` lists only work that
+is still outstanding.
+
+A branch is pruned when it was pushed under its own name and its tip is on `origin/dev` or
+`origin/main`, so no commit can be lost. `N-trivial-fixes` branches are pruned too. It never
+touches `main`, `dev`, unmerged or never-pushed branches, or a branch checked out in any worktree.
+`--include-current` also prunes the checked-out branch if the worktree is clean: it switches to
+the integration branch and fast-forwards it first.
+
+```bash
+bash xpq-org/scripts/prune-local-branches.sh --dry-run --include-current   # preview
+bash xpq-org/scripts/prune-local-branches.sh --include-current
+```
+
+**Reopening a branch:** `git switch N-slug` recreates it from `origin/N-slug`. That works for
+the permanent `N-trivial-fixes` branches and for any branch merged to `dev` but not yet
+promoted. If the remote is gone (the branch reached `main`), branch fresh off `dev` instead.
+When you reopen a trivial-fixes branch, merge `dev` into it first, since it lags behind.
 
 ### `install-hooks.sh [repo-path]`
 
