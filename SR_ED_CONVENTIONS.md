@@ -118,21 +118,23 @@ The commit conventions above govern *what lands on a branch*. This section gover
 
 ### Two-branch promotion (deployable repos)
 
-`xpq-web`, `xpq-api`, and `xpq-infra` each carry two long-lived branches:
+`xpq-web`, `xpq-api`, and `xpq-infra` each carry two long-lived branches, and releases are cut from `main` as tags:
 
-- **`dev`** — integration, validated on the **local** stack (Kind + OIDC Dev Services, $0). Feature branches merge here first. A `dev` merge deploys nothing to Azure (see *Deployment lifecycle*).
-- **`main`** — production (the repo's *default* branch). Only `dev` promotes here.
+- **`dev`**: integration, validated **one repo at a time** on the **local** stack (Kind + OIDC Dev Services, $0). Feature branches merge here first.
+- **`main`**: the repo's *default* branch and the **system-test baseline**. With every `xpq-*` clone checked out on `main`, `dev-up.sh` runs the whole platform as it stands across repos. Only `dev` promotes here. Merging to `main` deploys nothing.
+- **Release tags (`vX.Y.Z`) on `main`**: the **atomic deployable unit** and the only thing that reaches production (see *Deployment lifecycle*).
 
-`xpq-org` is pure tooling/docs with no environment — single-track: feature branch → PR → `main`. Where this section says "off `dev`", read it as "off the repo's integration branch" — `dev` for the deployable repos, `main` for `xpq-org`.
+`xpq-org` is pure tooling/docs with no environment. It is single-track: feature branch → PR → `main`. Where this section says "off `dev`", read it as "off the repo's integration branch": `dev` for the deployable repos, `main` for `xpq-org`.
 
-`xpq-infra` is deployable, but its "deploy" is indirect: its Bicep *defines* the staging and prod resource groups that promotions build from. An `xpq-infra` `dev` merge means "this Bicep is ready to be consumed by the next staging build," not an independent cloud push.
+`xpq-infra` is deployable, but its "deploy" is indirect: its Bicep *defines* the staging and prod resource groups that releases build from. An `xpq-infra` promotion means "this Bicep is ready to be consumed by the next staging or prod build", not an independent cloud push.
 
 ### Gates (convention over configuration)
 
 XP Quest is on the free GitHub plan: no server-side branch protection, no required reviews, no CODEOWNERS. The gates below are **conventions the solo developer keeps by habit**, not rules the platform enforces. They are written so that following them produces a clean, defensible history without any paid tooling.
 
-- **feature → `dev`:** open a PR; **self-managed** — the author merges without a review gate. The point of this merge is to integrate the change on `dev` and validate it on the **local** stack while the issue is still in progress; no cloud deploy happens here (see *Deployment lifecycle* below). The PR body carries the issue keyword per the close-on-merge rule below.
-- **`dev` → `main`:** open a PR; **this is the acceptance gate and it requires Robin's review.** Production is downstream of this merge. The promotion PR is also where issues close (next rule) and what drives the staging lifecycle (below).
+- **feature → `dev`:** open a PR. This is **self-managed**: the author merges without a review gate. The merge integrates the change on `dev` so it can be validated on the **local** stack in that repo's scope. The PR body carries the issue keyword per the close-on-merge rule below.
+- **`dev` → `main` (promotion):** open a PR. **This is the acceptance gate and it requires Robin's review.** Promote **whenever `dev` is green locally**. Promotions are meant to be frequent and small, and **promoting mid-epic is normal**. The promotion PR is where issues close (next rule). Its test plan includes a cross-repo system test from `main` on the local stack.
+- **Release tag on `main`:** cut deliberately, when a standalone issue or an epic is complete (see *Deployment lifecycle*).
 
 Never open a PR from a feature branch straight to `main`. The one exception is a prod-only CI/infra change that can't be validated on `dev` (e.g. the production deploy workflow or Azure resource config): branch from `main` and PR to `main` directly. Claude must never merge a PR autonomously; Robin merges (self-managed means *Robin* merges his own dev-bound PRs without ceremony, not that the agent does).
 
@@ -140,22 +142,21 @@ Never open a PR from a feature branch straight to `main`. The one exception is a
 
 GitHub Actions workflows in each deployable repo implement this contract; the conventions here are authoritative when the two disagree.
 
-**The atomic deployable unit is a completed *standalone issue* or a completed *epic*.** Cloud is entered only at that boundary — never on an individual `dev` merge. The epic exists precisely to widen "atomic" from one issue to a coordinated, possibly cross-repo set (app + infra) that must move as one. Three environments, only one always-on:
+**The atomic deployable unit is a release tag, cut when a *standalone issue* or an *epic* is complete.** Cloud is entered only at a tag, never on a `dev` or `main` merge. The epic exists to widen "atomic" from one issue to a coordinated, possibly cross-repo set (app + infra) that must move as one. Only one environment is always-on:
 
 | Trigger | Action | Environment |
 | --- | --- | --- |
-| Merge to `dev` | Integrate; validate locally. **No Azure deploy.** | **local** — Kind + OIDC Dev Services, $0 |
-| **Open** a `dev` → `main` promotion PR (an atomic unit is complete) | Provision an **ephemeral staging resource group** from `xpq-infra` Bicep; deploy app + infra into it | **staging** — exists only while the promotion PR is open |
-| **Merge** the promotion PR to `main` | **Tear down** the staging resource group | staging removed; its cost dies with it |
-| Manual `workflow_dispatch` on `main` | Deploy `main` to production | **prod** — human-initiated in early phases; automated promotion is a future introduction once gates mature |
+| Merge to `dev` | Integrate; validate in the repo's own scope. **No Azure deploy.** | **local**: Kind + OIDC Dev Services, $0 |
+| Merge a promotion PR to `main` | System-test across repos from `main`. **No Azure deploy.** | **local**: same stack, all clones on `main` |
+| *(future)* Push a release-candidate tag `vX.Y.Z-rc.N` | Provision an **ephemeral staging resource group** from `xpq-infra` Bicep; deploy the tagged app + infra into it | **staging**: exists only until the release is cut or abandoned |
+| Push a release tag `vX.Y.Z` (or manual `workflow_dispatch` at the tag) | Deploy the tag to production; tear down any staging for it | **prod**: human-initiated, since a person pushes the tag |
 
-Because staging is built **fresh from Bicep** every time a promotion opens, it always reflects app + infra exactly as code describes them — there is no long-lived cloud environment to drift out of sync with un-applied infra. That is the structural reason the cross-repo ordering hazard (an app change deployed before its Azure migration) **cannot occur**: the migration is a sub-issue of the same epic, and the epic is not promotable until it is done.
+**Why mid-epic promotion is safe:** nothing downstream of `main` deploys on merge, so a half-integrated epic on `main` reaches no cloud environment. The cross-repo ordering hazard (an app change deployed before its Azure migration) is handled at the tag instead. An epic is not released until all of its sub-issues are on `main` in every repo, and staging, built **fresh from Bicep**, cannot drift from un-applied infra.
 
-- The promotion PR is the **system-test window**: opening it is the moment a completed atomic unit (a standalone issue, or an integrated epic) becomes testable as a whole on real Azure. Everything before it is validated locally.
-- **A promotion promotes `dev`'s entire state.** There is no cherry-picking: every commit on `dev` rides the next promotion, whichever issue motivated it. Corollary: **`dev` must always be promotable.** Work that can't sit on `dev` safely in a partial state is epic-scoped by definition — its sub-issues integrate under the epic (§Epics), so `dev` only ever receives complete shippable slices (a finished issue, or a finished epic). The epic mechanism gates *incompleteness*; staging gates *breakage*.
-- **Promotion freeze.** While a promotion PR is open, the only feature → `dev` merges permitted are fixes for findings from the staging test — they join the promotion under test, and staging redeploys with them. Everything unrelated queues until the promotion merges or closes. Without the freeze, the open promotion PR (whose head *is* `dev`) silently absorbs unrelated merges mid-test and invalidates what staging already validated.
-- Merging to `main` does **not** deploy production. Prod deploys are deliberate, manual events against `main`'s tip — at least until automated deployment is introduced.
-- Closing a promotion PR without merging must also tear down staging.
+- **`main` must always be releasable.** A tag ships `main`'s tip, with no cherry-picking, so any unfinished epic slices sitting on `main` ship with the next release of *anything*. A mid-epic slice may be promoted only if it is **inert when released**: not yet wired into a route, menu or flow, or switched off by config. A slice that would break or expose half a feature belongs on the epic branch until the epic is complete (§Epics). Promotion is frequent; tagging is the deliberate act.
+- **`dev` must be green before promotion.** It needs to work on the local stack, but it does not need to be "complete". There is **no promotion freeze**: promotions are small, and no environment is tied to an open promotion PR, so unrelated `dev` merges during review are harmless. If one lands, the PR simply carries it, and the test plan covers what was merged.
+- **Staging is not built yet.** When it is, it hangs off release-candidate tags rather than promotion PRs, so frequent promotions create no resource groups. Abandoning a candidate (no release cut) must also tear its staging down.
+- **Prod is deliberate.** `xpq-web` already deploys to SWA only on exact `vX.Y.Z` tag pushes (XP-Quest/xpq-web#31). `xpq-api` and `xpq-infra` follow the same contract once their deploy workflows exist.
 
 ### When issues close (the close-on-merge rule)
 
@@ -163,7 +164,7 @@ GitHub's `Closes #NN` / `Fixes #NN` keyword **only auto-closes when the PR merge
 
 That mechanic drives the rule:
 
-1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. Work is "done" when it reaches production — which is exactly when GitHub will honour the keyword. A promotion PR that carries several features closes them all — repeat the keyword per issue (GitHub only honours the first one otherwise): `Closes #41, closes #42, closes #43`.
+1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. An issue is "done" when it reaches `main`, meaning it has been system-tested and is releasable, which is exactly when GitHub will honour the keyword. Release is a separate, later event: it is tracked by the tag and, for epics, by closing the epic issue (§Epics). A promotion PR that carries several features closes them all — repeat the keyword per issue (GitHub only honours the first one otherwise): `Closes #41, closes #42, closes #43`.
 2. **Feature → `dev` PRs may carry the keyword — it links, it cannot close.** Because the keyword only fires on default-branch merges, `Closes #NN` in a dev-bound PR is inert for closing — but it is the only way to get the PR into the issue's **Development** section (and therefore the project board's linked-PR indicator). One catch: GitHub registers the link only while the PR's base **is** the default branch. So either create the PR against `main` with the keyword and immediately retarget to `dev`, or flip an existing PR's base to `main` and back (`gh api -X PATCH .../pulls/N -f base=main`, verify, then `-f base=dev`) — the link survives retargeting. State in the PR body that closure happens at promotion.
 
 ### Branch hygiene
@@ -173,7 +174,7 @@ That mechanic drives the rule:
 - **It never deletes** `main`, `dev`, an `N-trivial-fixes` branch, a branch from a fork, a branch that is the head or the base of an open PR, or a branch whose tip has moved past the merged head (commits pushed after the merge). Each outcome is listed in the run summary; skips are normal, a failed delete fails the run.
 - **Epic sub-branches are only found if the epic → `dev` PR is merged with a merge commit.** Squashing or rebasing it replaces the sub-PRs' commits, so the walk cannot see them; delete those branches by hand.
 - **Replay or dry-run a cleanup:** in a repo's Actions tab run *branch-cleanup* with a merged PR number (it defaults to dry run), or locally `scripts/branch-cleanup.sh --repo OWNER/REPO --pr N --dry-run`.
-- **Re-create `dev` from `main` after each promotion.** The promotion merge commit lands on `main` but not on `dev`, so the two drift apart. Resetting `dev` to `main` right after promoting keeps `dev` a clean fast-forward base for the next cycle:
+- **Re-create `dev` from `main` after each promotion.** The promotion merge commit lands on `main` but not on `dev`, so the two drift apart. Resetting `dev` to `main` right after promoting keeps `dev` a clean fast-forward base for the next cycle. With no promotion freeze, first check that nothing landed on `dev` after the promotion merged: `git log origin/main..origin/dev` must be empty. If it isn't, merge `main` into `dev` instead of resetting:
 
   ```bash
   git switch main && git pull
@@ -186,13 +187,13 @@ That mechanic drives the rule:
 
 Most work is **one issue : one branch**. Keep it that way — it is the simplest mapping, and it makes the `commit-msg` hook's "`#<issue>` must equal the branch number" check exactly right.
 
-An **epic** is the wrapper for **any multi-story deliverable** — any deliverable whose stories must land together for the system to stay stable. Epic scope is defined by *atomicity, not size*: two stories that would break the system if deployed apart are an epic; a ten-story deliverable whose stories are each independently shippable is not (those are just ten issues). The trigger is "do these have to move as one to maintain stability?" — most often because they coordinate changes across repos (app + infra). The epic's tracking issue `#E` is the orchestrator; cloud is entered only when *every* sub-issue is complete. This is the whole reason the deployment lifecycle can gate on completed units without per-issue dependency bookkeeping — the epic *is* the dependency boundary.
+An **epic** is the wrapper for **any multi-story deliverable** — any deliverable whose stories must land together for the system to stay stable. Epic scope is defined by *atomicity, not size*: two stories that would break the system if deployed apart are an epic; a ten-story deliverable whose stories are each independently shippable is not (those are just ten issues). The trigger is "do these have to move as one to maintain stability?" — most often because they coordinate changes across repos (app + infra). The epic's tracking issue `#E` is the orchestrator. Its slices may reach `main` as they finish, provided each is inert when released (see *Deployment lifecycle*), but **no release tag ships the epic until *every* sub-issue is complete**. This is the whole reason the deployment lifecycle can gate on completed units without per-issue dependency bookkeeping: the epic *is* the dependency boundary.
 
 Two shapes, by whether the work lives in one repo or several.
 
 #### Single-repo epic — nested integration branch
 
-A multi-story deliverable inside a single repo (observability — UI instrumentation + collector infra + dashboards, which must ship together to be coherent — is the canonical example) uses a nested **integration branch**:
+A multi-story deliverable inside a single repo whose slices **cannot sit inert on `main`** uses a nested **integration branch**. Observability is the canonical example: UI instrumentation, collector infra and dashboards must ship together to be coherent. If each slice *can* sit inert, skip the epic branch: sub-issues follow the ordinary feature → `dev` → `main` flow and the epic issue just tracks them.
 
 ```
 dev
@@ -203,12 +204,12 @@ dev
 ```
 
 - **Every branch is still 1:1 with an issue** — the epic with its tracking issue `#E`, each sub-branch with its sub-issue. Commits on `<a>-spa-telemetry` are `#a:`, and the `commit-msg` hook is satisfied with **no change**. That is the whole reason for this shape: it gives you many issues across one body of work *without* relaxing the commit guard.
-- **Sub-PRs target the epic branch**, not `dev`. Check the base dropdown every time — a sub-PR accidentally opened against `dev` pushes a half-finished slice onto the integration branch, breaking the "`dev` is always promotable" invariant.
+- **Sub-PRs target the epic branch**, not `dev`. Check the base dropdown every time — a sub-PR accidentally opened against `dev` pushes a half-finished slice onto the integration branch and from there toward `main`, breaking the "`main` is always releasable" invariant.
 - **Integrate from `dev` frequently.** The epic branch is long-lived, so it drifts from `dev` as other work lands. Merge `dev` → epic branch on a regular cadence (and cascade into the open sub-branches), so the final promotion is a small reconciliation instead of a large one. Integrate early, integrate often — do not let an epic branch sit for weeks.
 - **Merge into the epic branch; never rebase it.** Rebasing the integration branch orphans the sub-branches based on it.
 - **Manually close each sub-issue when its sub-PR merges into the epic branch.** Because `Closes` only fires on `main` (above), sub-PRs into the epic branch will *not* auto-close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the deliverable ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
-- **The epic issue `#E` closes at production.** The `dev` → `main` promotion PR carries `Closes #E`. So sub-issues close at *integration*; the epic closes at *prod*. This is a deliberate, narrow exception to the close-on-merge rule above — the only place an issue closes before reaching `main`.
-- **The epic branch is deploy-silent.** Pushing the epic branch deploys nothing, and sub-PRs into it get no environment. The integrated whole reaches `dev` (and local validation) when the epic branch merges to `dev`, and gets its **staging** system-test window when the promotion PR opens (see *Deployment lifecycle*).
+- **The epic issue `#E` closes at release.** Close it by hand when the release tag that ships it is cut, since no keyword fires on a tag. Do not put `Closes #E` in a promotion PR. So sub-issues close at *integration*, and the epic closes at *release*. Sub-issues closing on the epic branch are the deliberate, narrow exception to the close-on-merge rule above: the only place an issue closes before reaching `main`.
+- **The epic branch is deploy-silent.** Pushing the epic branch deploys nothing, and sub-PRs into it get no environment. The integrated whole reaches `dev` (and local validation) when the epic branch merges to `dev`, then `main` (cross-repo system test) at the next promotion. It gets its cloud test window at its release candidate tag (see *Deployment lifecycle*).
 - **SR&ED work stays 1:1.** The epic model is a non-SR&ED convenience. A SR&ED research issue is its own branch with its own granular commit trail (its Experiment Log *issues* are children, not branches) — don't fold SR&ED investigations onto an epic branch, or you blur the per-issue evidence the claim depends on.
 
 #### Cross-repo epic — no shared branch
@@ -217,9 +218,9 @@ When an epic spans repos (Auth MVP-2 — Entra + ACA + Key Vault infra in `xpq-i
 
 - **The epic `#E` lives in one repo; its sub-issues live in whichever repo does the work.** `#E`'s body lists them as a checklist (cross-repo references render and tick across repos). Order the list — it is the apply sequence (infra that must exist first sits above the app change that needs it).
 - **Each sub-issue follows the ordinary feature → `dev` flow in its own repo.** No epic branch; each repo's `dev` integrates its own slice. The `commit-msg` hook is satisfied with no change — every commit is still `#<sub-issue>` on a `<sub-issue>-slug` branch.
-- **`dev` stays promotable in each repo independently.** A merged-but-not-yet-promoted infra slice sits on `xpq-infra` `dev`; a merged app slice sits on `xpq-api` `dev`. Neither is in cloud yet — cloud waits for the promotion.
-- **Completion = all sub-issues across all repos merged to their `dev`s.** Then open a `dev` → `main` promotion PR **in each affected repo**. These promotions are the atomic unit; they must reach **staging together**, so the staging workflow builds from the set (app image(s) + the promoted Bicep), not one repo in isolation. Sequence the merges to `main` per the issue order (infra first) so prod applies in dependency order; staging, built fresh from Bicep, is order-insensitive by construction.
-- **`Closes #sub`** rides each repo's own promotion PR; **`Closes #E`** rides the promotion PR of the repo that owns `#E`. Sub-issues still close at *prod*, not at integration — unlike the single-repo epic, there is no epic-branch integration event to close them at.
+- **Each repo promotes independently and often.** An infra slice can sit on `xpq-infra` `main` while its app slice is still on `xpq-api` `dev`. Neither is in cloud, because cloud waits for the release tags. Every slice that reaches `main` must still be inert when released, so an unrelated release of that repo can't ship it half-wired.
+- **Completion = all sub-issues across all repos on their `main`s,** system-tested together locally. Then cut a release **in each affected repo**. These tags are the atomic unit and must reach **staging together**, so the staging workflow builds from the set (app image(s) + the tagged Bicep), not from one repo in isolation. Sequence the prod releases in issue order (infra first) so prod applies in dependency order. Staging, built fresh from Bicep, is order-insensitive by construction.
+- **`Closes #sub`** rides each repo's own promotion PR, so sub-issues close when they reach `main`. **`#E`** is closed by hand when the last release tag is cut.
 
 ### The `#4`-class exception
 
