@@ -86,7 +86,9 @@ skip_if_root() {
 
 @test "update preserves the executable bit" {
   skip_if_root
-  chmod +x "$CLONE/scripts/tool.sh"
+  chmod +x "$TMP/work/scripts/tool.sh"
+  git -C "$TMP/work" commit -q -am exec && git -C "$TMP/work" push -q origin main
+  git -C "$CLONE" pull -q --ff-only
   "$SCRIPT" --lock "$CLONE"
   [ -x "$CLONE/scripts/tool.sh" ]
   "$SCRIPT" "$CLONE"
@@ -107,6 +109,57 @@ skip_if_root() {
   [[ "$output" == *"Updated"* ]]
   [[ "$output" != *"REPLACED"* ]]
   run touch "$CLONE/scripts/new.sh"; [ "$status" -ne 0 ]
+}
+
+@test "--lock and update both refuse a clone with an untracked file" {
+  echo junk > "$CLONE/scripts/stray.sh"
+  run "$SCRIPT" --lock "$CLONE"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"local changes"* ]]
+  run "$SCRIPT" "$CLONE"
+  [ "$status" -eq 2 ]
+  [ -w "$CLONE/scripts" ]
+}
+
+@test "update refuses a clone with a tracked edit, even one a fast-forward would keep" {
+  push_change v2
+  echo edited > "$CLONE/README-local" && git -C "$CLONE" add README-local
+  run "$SCRIPT" "$CLONE"
+  [ "$status" -eq 2 ]
+  [ "$(cat "$CLONE/scripts/tool.sh")" = v1 ]
+}
+
+@test "ignored files do not count as local changes" {
+  echo "*.log" > "$TMP/work/.gitignore"
+  git -C "$TMP/work" add -A && git -C "$TMP/work" commit -q -m ignore && git -C "$TMP/work" push -q origin main
+  git -C "$CLONE" pull -q --ff-only
+  echo x > "$CLONE/run.log"
+  run "$SCRIPT" --lock "$CLONE"
+  [ "$status" -eq 0 ]
+}
+
+@test "a tracked symlink's target outside the clone is not chmodded" {
+  skip_if_root
+  echo outside > "$TMP/outside.txt"
+  ln -s "$TMP/outside.txt" "$TMP/work/link"
+  git -C "$TMP/work" add -A && git -C "$TMP/work" commit -q -m link && git -C "$TMP/work" push -q origin main
+  git -C "$CLONE" pull -q --ff-only
+  "$SCRIPT" --lock "$CLONE"
+  [ -w "$TMP/outside.txt" ]
+  "$SCRIPT" "$CLONE"
+  [ -w "$TMP/outside.txt" ]
+}
+
+@test "a clone path containing quotes and \$( ) relocks and runs nothing" {
+  skip_if_root
+  odd="$TMP/it's \$(touch $TMP/INJECTED) dir"
+  git clone -q "$TMP/origin.git" "$odd" 2>/dev/null
+  "$SCRIPT" --lock "$odd"
+  push_change v2
+  run "$SCRIPT" "$odd"
+  [ "$status" -eq 0 ]
+  [ ! -e "$TMP/INJECTED" ]
+  run touch "$odd/scripts/new.sh"; [ "$status" -ne 0 ]
 }
 
 @test "refuses a clone that is not on main" {

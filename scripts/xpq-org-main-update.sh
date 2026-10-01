@@ -19,7 +19,7 @@
 #   --lock   only lock (one-time setup per machine); no pull
 #
 # Exit: 0 on success, 1 if the pull failed (the clone is still relocked),
-# 2 on bad usage or if CLONE is not a git clone on main.
+# 2 on bad usage, or if CLONE is not a clean git clone on main.
 
 # The whole script runs from inside main(), which bash parses completely before
 # running. The pull can replace this very file, and bash reads a script
@@ -52,6 +52,14 @@ main() {
     echo "Error: '${clone}' is on '${branch}', not main" >&2
     return 2
   fi
+  # A fast-forward keeps non-conflicting local edits and untracked files, so a
+  # dirty clone would be "updated" and locked while still differing from main.
+  # Ignored files are allowed; they are not code the skill runs.
+  if [[ -n "$(git -C "$clone" status --porcelain)" ]]; then
+    echo "Error: '${clone}' has local changes; it must match main exactly:" >&2
+    git -C "$clone" status --short >&2
+    return 2
+  fi
 
   if [[ $lock_only -eq 1 ]]; then
     set_writable "$clone" a-w
@@ -59,9 +67,13 @@ main() {
     return 0
   fi
 
+  # Arm the relock before unlocking, so a partial unlock (chmod failing part way
+  # under set -e) or an interrupt still relocks. The trap reads the path from a
+  # global when it fires rather than splicing it into the trap's code, so quotes
+  # or $(...) in a path can't break or inject into it.
+  RELOCK_CLONE="$clone"
+  trap 'set_writable "$RELOCK_CLONE" a-w' EXIT
   set_writable "$clone" u+w
-  # Relock however the pull ends, including an interrupt.
-  trap 'set_writable "'"$clone"'" a-w' EXIT
   if git -C "$clone" pull --ff-only --quiet; then
     echo "Updated ${clone} to $(git -C "$clone" rev-parse --short HEAD)"
     return 0
@@ -71,8 +83,11 @@ main() {
 }
 
 # set_writable <clone> <mode>: chmod everything in the working tree except .git/.
+# Symlinks are skipped: chmod follows them, so it would change the target, which
+# may be outside the clone. The read-only directory holding a link already stops
+# it from being replaced.
 set_writable() {
-  find "$1" -path "$1/.git" -prune -o -exec chmod "$2" {} +
+  find "$1" -path "$1/.git" -prune -o ! -type l -exec chmod "$2" {} +
 }
 
 main "$@"; exit
