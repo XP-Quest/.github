@@ -50,6 +50,28 @@ git, is the fix.
 
 ---
 
+## Preflight: Update the main-only tooling clone
+
+This skill and every script it calls run from `/home/rcoe/xpquest/.xpq-org-main` — a dedicated
+clone of `XP-Quest/.github` that stays on `main` and is never used for coding (see
+XP-Quest/.github#57). That keeps the code producing claim evidence identical on every machine
+and independent of whatever branch the working `~/xpquest/xpq-org` clone has checked out.
+
+Fast-forward it before doing anything else:
+
+```bash
+git -C /home/rcoe/xpquest/.xpq-org-main pull --ff-only --quiet
+```
+
+- If the directory is missing, or `git -C /home/rcoe/xpquest/.xpq-org-main branch --show-current`
+  is not `main`, stop and point Robin at the setup in the xpq-org README ("Claude Code skills").
+- If the pull fails (offline, or the clone has local changes), warn Robin with the error and
+  continue on the existing checkout. Note the warning in the Step 12 report.
+- If the pull changed this file (`skills/xpquest-daily-log.md`), this run is still following
+  the instructions loaded before the pull — tell Robin and suggest re-invoking the skill.
+
+---
+
 ## Step 0: Confirm Time Tracker export
 
 `daily_git_summary.sh` (Step 1) locates Time Tracker hours by looking for
@@ -113,10 +135,10 @@ Call the bash script, passing any arguments through:
 
 ```bash
 # no args, or --from/--to flags:
-bash /home/rcoe/xpquest/xpq-org/scripts/historical_git_summary.sh [--from DATE] [--to DATE]
+bash /home/rcoe/xpquest/.xpq-org-main/scripts/historical_git_summary.sh [--from DATE] [--to DATE]
 
 # single positional date — call the per-date script directly:
-bash /home/rcoe/xpquest/xpq-org/scripts/daily_git_summary.sh DATE
+bash /home/rcoe/xpquest/.xpq-org-main/scripts/daily_git_summary.sh DATE
 ```
 
 `historical_git_summary.sh`:
@@ -197,7 +219,7 @@ Cache results by `repo#NN`. Use `first_line` to write "why" context, not just "w
 Call the script — do not reimplement this logic in the skill:
 
 ```bash
-python3 /home/rcoe/xpquest/xpq-org/scripts/session_summary.py "$DATE"
+python3 /home/rcoe/xpquest/.xpq-org-main/scripts/session_summary.py "$DATE"
 ```
 
 It prints one block per session file that has messages on DATE:
