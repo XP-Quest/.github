@@ -136,8 +136,7 @@ xpq-org/
 │       └── helpers/                Mock gh binary and other test utilities
 │
 ├── skills/
-│   ├── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
-│   └── xpquest-backfill-logs.md    Claude Code skill: /xpquest-backfill-logs [--from] [--to]
+│   └── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
 │
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
 └── README.md                       This file
@@ -208,22 +207,29 @@ These are registered in `~/.claude/settings.json` and apply to all repos under `
 
 ## Claude Code skills
 
-Skills are defined in `skills/` and wired into `~/.claude/skills/` for discovery.
-Each skill requires a subdirectory named after the command containing a `SKILL.md` file:
+Skills are defined in `skills/` and wired into `~/.claude/skills/` for discovery. They run
+from `~/xpquest/.xpq-org-main` — a second clone of this repo that stays on `main` and is
+never used for coding (#57). The skill symlink and the scripts it calls both point there, so
+the code that produces the daily/SR&ED logs is always reviewed `main`, identical on every
+machine, and unaffected by whatever branch the working `~/xpquest/xpq-org` clone has checked
+out. The skill's preflight step fast-forwards the clone on every run — no manual pull needed.
 
 ```text
 ~/.claude/skills/
 └── xpquest-daily-log/
-    └── SKILL.md  →  ~/xpquest/xpq-org/skills/xpquest-daily-log.md  (symlink)
+    └── SKILL.md  →  ~/xpquest/.xpq-org-main/skills/xpquest-daily-log.md  (symlink)
 ```
 
-To set up after cloning:
+To set up on each machine:
 
 ```bash
-mkdir -p ~/.claude/skills/xpquest-daily-log ~/.claude/skills/xpquest-backfill-logs
-ln -s ~/xpquest/xpq-org/skills/xpquest-daily-log.md    ~/.claude/skills/xpquest-daily-log/SKILL.md
-ln -s ~/xpquest/xpq-org/skills/xpquest-backfill-logs.md ~/.claude/skills/xpquest-backfill-logs/SKILL.md
+gh repo clone XP-Quest/.github ~/xpquest/.xpq-org-main
+mkdir -p ~/.claude/skills/xpquest-daily-log
+ln -sfn ~/xpquest/.xpq-org-main/skills/xpquest-daily-log.md ~/.claude/skills/xpquest-daily-log/SKILL.md
 ```
+
+Never edit, branch, or commit in `.xpq-org-main` — a local change blocks the fast-forward
+(the skill warns and runs the stale checkout). Do all work in `~/xpquest/xpq-org`.
 
 Invoke from within a Claude Code session:
 
@@ -231,11 +237,10 @@ Invoke from within a Claude Code session:
 | --- | --- |
 | `/xpquest-daily-log [DATE]` | One date (default: yesterday). Always writes/overwrites. |
 | `/xpquest-daily-log --from DATE [--to DATE]` | Date range. Always writes/overwrites. |
-| `/xpquest-backfill-logs [--from DATE] [--to DATE]` | Date range, skips already-complete logs, resumes from checkpoint. |
 
-Both skills read the bash-generated `github_summary` as structured input, augment it with
-`gh issue view` body content (the PM/architecture "why"), read Claude Code session JSONL
-files for narrative context, and write the enriched output.
+The skill reads the bash-generated `github_summary` as structured input, augments it with
+`gh issue view` body content (the PM/architecture "why"), reads Claude Code session JSONL
+files for narrative context, and writes the enriched output.
 
 ---
 
