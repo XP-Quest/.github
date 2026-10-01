@@ -179,6 +179,36 @@ no_branch() {
   has_branch app 5-thing
 }
 
+@test "does not delete a branch whose tip changes after the ancestry check" {
+  make_repo app
+  feature app 5-thing
+  merge_into app 5-thing dev
+  checked_tip="$(git -C "$ROOT/app" rev-parse 5-thing)"
+  race_tip="$(git -C "$ROOT/app" commit-tree "$(git -C "$ROOT/app" rev-parse 'origin/main^{tree}')" -p "$(git -C "$ROOT/app" rev-parse origin/main)" -m 'unmerged race tip')"
+  mkdir "$TMP/bin"
+  real_git="$(command -v git)"
+  cat > "$TMP/bin/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == -C && "${3:-}" == merge-base && "${4:-}" == --is-ancestor && "${5:-}" == "$RACE_CHECKED_TIP" ]]; then
+  "$REAL_GIT" "$@"
+  status=$?
+  if [[ $status -eq 0 ]]; then
+    "$REAL_GIT" -C "$RACE_REPO" update-ref "refs/heads/$RACE_BRANCH" "$RACE_TIP"
+  fi
+  exit "$status"
+fi
+exec "$REAL_GIT" "$@"
+EOF
+  chmod +x "$TMP/bin/git"
+
+  run env PATH="$TMP/bin:$PATH" REAL_GIT="$real_git" RACE_REPO="$ROOT/app" \
+    RACE_BRANCH=5-thing RACE_CHECKED_TIP="$checked_tip" RACE_TIP="$race_tip" \
+    "$SCRIPT" --root "$ROOT"
+
+  [ "$status" -ne 0 ]
+  [ "$(git -C "$ROOT/app" rev-parse 5-thing)" = "$race_tip" ]
+}
+
 @test "--dry-run deletes nothing" {
   make_repo app
   feature app 5-thing

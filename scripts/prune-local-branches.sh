@@ -75,12 +75,16 @@ pruned_total=0
 # through a PR was pushed with -u, so its upstream is origin/<branch>, even after
 # branch-cleanup deletes the remote side ("gone").
 merged() {
-  local ref
+  local ref tip
   [[ "$(git -C "$1" config --get "branch.$2.remote" || true)" == "origin" \
      && "$(git -C "$1" config --get "branch.$2.merge" || true)" == "refs/heads/$2" ]] || return 1
+  tip="$(git -C "$1" rev-parse -q --verify "refs/heads/$2")" || return 1
   for ref in origin/dev origin/main; do
     git -C "$1" rev-parse -q --verify "refs/remotes/$ref" >/dev/null || continue
-    git -C "$1" merge-base --is-ancestor "refs/heads/$2" "refs/remotes/$ref" && return 0
+    if git -C "$1" merge-base --is-ancestor "$tip" "refs/remotes/$ref"; then
+      merged_tip="$tip"
+      return 0
+    fi
   done
   return 1
 }
@@ -143,9 +147,9 @@ for repo in "${repos[@]}"; do
     elif [[ $dry_run -eq 1 ]]; then
       echo "   would delete $branch"
       pruned_total=$((pruned_total + 1))
-    # -D, not -d: -d judges against the branch's upstream or HEAD, which can refuse
-    # a branch whose upstream is gone. merged() above is the real safety check.
-    elif git -C "$repo" branch -D --quiet "$branch" >/dev/null 2>&1; then
+    # Delete only the exact tip checked by merged(); the expected-old OID makes a
+    # concurrent branch move fail instead of deleting new work.
+    elif git -C "$repo" update-ref -d "refs/heads/$branch" "$merged_tip" >/dev/null 2>&1; then
       echo "   deleted $branch"
       pruned_total=$((pruned_total + 1))
     else
