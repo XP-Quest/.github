@@ -123,8 +123,9 @@ for repo in "${repos[@]}"; do
          && git -C "$repo" merge --ff-only --quiet "origin/$integration" 2>/dev/null; then
       echo "   switched to $integration"
     else
-      echo "   FAILED  to switch to $integration (left on $current)" >&2
+      echo "   FAILED  to switch to or fast-forward $integration; skipping this repository" >&2
       failed=1
+      continue
     fi
   fi
 
