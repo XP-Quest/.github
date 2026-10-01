@@ -247,6 +247,30 @@ EOF
   [ "$(git -C "$ROOT/app" branch --show-current)" = 5-thing ]
 }
 
+@test "--include-current with a diverged local dev stays put and deletes nothing" {
+  make_repo app
+  feature app 5-thing
+  merge_into app 5-thing dev
+  git -C "$ROOT/app" reset -q --hard origin/dev~1
+  git -C "$ROOT/app" commit -q --allow-empty -m "local-only dev commit"
+  git -C "$ROOT/app" switch -q 5-thing
+  run "$SCRIPT" --root "$ROOT" --include-current
+  [ "$status" -eq 1 ]
+  has_branch app 5-thing
+  [ "$(git -C "$ROOT/app" branch --show-current)" = 5-thing ]
+  [[ "$output" == *"stayed on 5-thing"* ]]
+}
+
+@test "deleting a branch also removes its tracking config" {
+  make_repo app
+  feature app 5-thing
+  merge_into app 5-thing dev
+  run "$SCRIPT" --root "$ROOT"
+  no_branch app 5-thing
+  run git -C "$ROOT/app" config --get branch.5-thing.merge
+  [ "$status" -ne 0 ]
+}
+
 @test "--include-current --dry-run reports the switch but changes nothing" {
   make_repo app
   feature app 5-thing

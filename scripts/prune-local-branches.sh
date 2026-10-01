@@ -69,22 +69,18 @@ fi
 failed=0
 pruned_total=0
 
-# merged <repo> <branch>: was the branch pushed under its own name, and is its
-# tip on origin/dev or origin/main? The push check keeps a fresh branch with no
+# merged <repo> <branch> <sha>: was the branch pushed under its own name, and is
+# <sha> (its tip, read once by the caller) on origin/dev or origin/main? The push check keeps a fresh branch with no
 # commits yet (tip == origin/dev) from looking "merged". Every branch that went
 # through a PR was pushed with -u, so its upstream is origin/<branch>, even after
 # branch-cleanup deletes the remote side ("gone").
 merged() {
-  local ref tip
+  local ref
   [[ "$(git -C "$1" config --get "branch.$2.remote" || true)" == "origin" \
      && "$(git -C "$1" config --get "branch.$2.merge" || true)" == "refs/heads/$2" ]] || return 1
-  tip="$(git -C "$1" rev-parse -q --verify "refs/heads/$2")" || return 1
   for ref in origin/dev origin/main; do
     git -C "$1" rev-parse -q --verify "refs/remotes/$ref" >/dev/null || continue
-    if git -C "$1" merge-base --is-ancestor "$tip" "refs/remotes/$ref"; then
-      merged_tip="$tip"
-      return 0
-    fi
+    git -C "$1" merge-base --is-ancestor "$3" "refs/remotes/$ref" && return 0
   done
   return 1
 }
@@ -119,19 +115,26 @@ for repo in "${repos[@]}"; do
   freed=""   # the current branch, once --include-current has moved (or would move) off it
 
   if [[ $include_current -eq 1 && -n "$current" \
-        && "$current" != "main" && "$current" != "dev" ]] && merged "$repo" "$current"; then
+        && "$current" != "main" && "$current" != "dev" ]] \
+     && merged "$repo" "$current" "$(git -C "$repo" rev-parse "refs/heads/$current")"; then
     if [[ -n "$(git -C "$repo" status --porcelain)" ]]; then
       :   # reported as "kept (checked out)" below
     elif [[ $dry_run -eq 1 ]]; then
       echo "   would switch to $integration"
       freed="$current"
-    elif git -C "$repo" switch --quiet "$integration" 2>/dev/null \
-         && git -C "$repo" merge --ff-only --quiet "origin/$integration" 2>/dev/null; then
-      echo "   switched to $integration"
-    else
-      echo "   FAILED  to switch to or fast-forward $integration; skipping this repository" >&2
+    elif ! git -C "$repo" switch --quiet "$integration" 2>/dev/null; then
+      echo "   FAILED  to switch to $integration; skipping this repository" >&2
       failed=1
       continue
+    elif ! git -C "$repo" merge --ff-only --quiet "origin/$integration" 2>/dev/null; then
+      # Local $integration has diverged from origin. Go back to where we were
+      # rather than leave the worktree on a branch that needs hand-reconciling.
+      git -C "$repo" switch --quiet "$current" 2>/dev/null || true
+      echo "   FAILED  to fast-forward $integration (diverged from origin); stayed on $current, skipping this repository" >&2
+      failed=1
+      continue
+    else
+      echo "   switched to $integration"
     fi
   fi
 
@@ -140,16 +143,25 @@ for repo in "${repos[@]}"; do
 
   while IFS= read -r branch; do
     [[ -z "$branch" || "$branch" == "main" || "$branch" == "dev" ]] && continue
+    # Read the tip once: the ancestry check and the delete both use this exact
+    # commit, so a concurrent session moving the branch in between can't get an
+    # unchecked commit deleted (clones are shared).
+    tip="$(git -C "$repo" rev-parse -q --verify "refs/heads/$branch")" || continue
     if [[ "$branch" != "$freed" ]] && printf '%s\n' "$checked_out" | grep -qxF "$branch"; then
       echo "   kept    $branch (checked out)"
-    elif ! merged "$repo" "$branch"; then
+    elif ! merged "$repo" "$branch" "$tip"; then
       echo "   kept    $branch (not pushed, or not yet on origin/dev or origin/main)"
     elif [[ $dry_run -eq 1 ]]; then
       echo "   would delete $branch"
       pruned_total=$((pruned_total + 1))
-    # Delete only the exact tip checked by merged(); the expected-old OID makes a
-    # concurrent branch move fail instead of deleting new work.
-    elif git -C "$repo" update-ref -d "refs/heads/$branch" "$merged_tip" >/dev/null 2>&1; then
+    # update-ref with the expected old value deletes only if the branch still points
+    # at the checked tip (atomic compare-and-delete); `git branch -D` can't do that.
+    # Re-check worktrees right before, since update-ref doesn't refuse a checked-out
+    # branch the way `branch -D` does. The branch's config section goes with it.
+    elif git -C "$repo" worktree list --porcelain | grep -qxF "branch refs/heads/$branch"; then
+      echo "   kept    $branch (checked out)"
+    elif git -C "$repo" update-ref -d "refs/heads/$branch" "$tip" 2>/dev/null; then
+      git -C "$repo" config --remove-section "branch.$branch" 2>/dev/null || true
       echo "   deleted $branch"
       pruned_total=$((pruned_total + 1))
     else
