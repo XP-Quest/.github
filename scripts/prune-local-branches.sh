@@ -94,9 +94,11 @@ for repo in "${repos[@]}"; do
   fi
   echo "== $name"
 
-  # Refresh origin/* so "merged" is judged against what is really integrated.
-  # Offline is not fatal: the last-fetched refs are still a safe (older) answer.
-  if ! git -C "$repo" fetch --prune --quiet origin 2>/dev/null; then
+  # Refresh origin/* for real runs; dry runs leave refs unchanged.
+  # Offline is not fatal: use the last-fetched refs.
+  if [[ $dry_run -eq 1 ]]; then
+    echo "   (dry run — judging against last-fetched origin refs)"
+  elif ! git -C "$repo" fetch --prune --quiet origin 2>/dev/null; then
     echo "   (fetch failed — judging against last-fetched origin refs)"
   fi
 
