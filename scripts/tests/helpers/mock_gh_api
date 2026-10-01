@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Mock gh binary for branch-cleanup.bats: serves canned `gh api` responses.
+#
+# A response is looked up by the exact argument string ("$*"): the file
+# $MOCK_GH_DIR/<md5 of args>, written by the stub / stub_fail helpers in the
+# test file. Behaviour for calls with no stub:
+#
+#   gh api -X DELETE repos/<r>/git/refs/heads/<b>   → logged to $MOCK_GH_DIR/deletes,
+#                                                      exits 0 (or 1 if the stub says so)
+#   gh api -X GET repos/<r>/pulls -f state=open ... → prints [] (no open PRs)
+#   anything else                                   → "HTTP 404" on stderr, exit 1
+#
+# Every call is appended to $MOCK_GH_DIR/calls.
+
+args="$*"
+key=$(printf '%s' "$args" | md5sum | cut -d' ' -f1)
+printf '%s\n' "$args" >> "$MOCK_GH_DIR/calls"
+
+if [[ -f "$MOCK_GH_DIR/$key.fail" ]]; then
+  cat "$MOCK_GH_DIR/$key.fail" >&2
+  exit 1
+fi
+
+if [[ "$args" == api\ -X\ DELETE\ repos/*/git/refs/heads/* ]]; then
+  printf '%s\n' "${args##*/git/refs/heads/}" >> "$MOCK_GH_DIR/deletes"
+  exit 0
+fi
+
+if [[ -f "$MOCK_GH_DIR/$key" ]]; then
+  cat "$MOCK_GH_DIR/$key"
+  exit 0
+fi
+
+if [[ "$args" == *"-f state=open"* ]]; then
+  echo '[]'
+  exit 0
+fi
+
+echo "gh: Not Found (HTTP 404)" >&2
+exit 1

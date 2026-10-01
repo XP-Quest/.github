@@ -1,0 +1,37 @@
+name: branch-cleanup
+
+# xpq-org's own caller for the shared branch cleanup. xpq-org is single-track
+# (feature -> main), so every merged PR here is a feature branch reaching main.
+# Self-references the reusable workflow in this same repo via a local path so it
+# validates on the PR that introduces it.
+#
+# Other repos use the cross-repo form instead:
+#   uses: XP-Quest/.github/.github/workflows/branch-cleanup-reusable.yml@main
+#
+# `workflow_dispatch` replays a past merged PR; it defaults to a dry run.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: Merged PR to clean up after
+        required: true
+      dry-run:
+        description: Log what would be deleted without deleting
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged
+    uses: ./.github/workflows/branch-cleanup-reusable.yml
+    with:
+      pr-number: ${{ github.event.inputs.pr-number }}
+      dry-run: ${{ github.event.inputs.dry-run == 'true' }}

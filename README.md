@@ -112,18 +112,23 @@ xpq-org/
 │   │   ├── experiment-log.yml      One experimental run; references a parent issue
 │   │   ├── engineering-task.yml    Routine work; includes SR&ED screening checkbox
 │   │   └── config.yml              Disables blank issues
+│   ├── workflows/
+│   │   ├── pr-lifecycle*.yml       Closing-keyword guard (reusable + xpq-org caller)
+│   │   └── branch-cleanup*.yml     Delete merged feature branches on merge to main (reusable + caller)
 │   ├── pull_request_template.md    PR template with SR&ED linkage field
 │   └── copilot-instructions.md     Org-wide Copilot context (workflow, WPs, tech stack)
 │
 ├── scripts/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
+│   ├── branch-cleanup.sh           Delete branches whose work reached main (run by the workflow)
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
 │   ├── hooks/
 │   │   └── commit-msg              Enforces #N: subject format; auto-prepends when possible
 │   └── tests/
 │       ├── run_tests.sh            Run all bats test suites
+│       ├── branch-cleanup.bats
 │       ├── commit-msg.bats
 │       ├── daily_git_summary.bats
 │       ├── historical_git_summary.bats

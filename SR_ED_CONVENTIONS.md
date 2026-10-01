@@ -168,15 +168,19 @@ That mechanic drives the rule:
 
 ### Branch hygiene
 
-- **Enable "Automatically delete head branches"** in each repo's settings. Merged feature branches are then removed without manual cleanup.
-- **Re-create `dev` from `main` after each promotion.** Auto-delete fires on merge of any PR whose *head* is the branch — and `dev` is the head of the promotion PR. Resetting `dev` to `main` right after promoting keeps the two from drifting and keeps `dev` a clean fast-forward base for the next cycle:
+- **Leave "Automatically delete head branches" off.** It is one per-repo checkbox: it cannot exempt the permanent `N-trivial-fixes` branches, and it cannot filter by base branch. Branch protection, the only documented opt-out, is not available on the private repos' plan. Cleanup is done instead by each repo's `branch-cleanup.yml` caller, which runs the org-wide reusable workflow (`branch-cleanup-reusable.yml`, logic in `scripts/branch-cleanup.sh`).
+- **A branch is deleted when its work reaches `main`, not when it merges to `dev`.** When a PR is merged into `main`, the workflow deletes the PR's own head branch (a feature → `main` PR: Track 2, or any xpq-org PR) and the head branch of every merged PR that rode a `dev` → `main` promotion. The second set is found by walking the promotion PR's commits to the PRs they belong to — exactly the work merged to `dev` since the last promotion. A feature branch therefore lives from creation until it is promoted.
+- **It never deletes** `main`, `dev`, an `N-trivial-fixes` branch, a branch from a fork, a branch that is the head or the base of an open PR, or a branch whose tip has moved past the merged head (commits pushed after the merge). Each outcome is listed in the run summary; skips are normal, a failed delete fails the run.
+- **Epic sub-branches are only found if the epic → `dev` PR is merged with a merge commit.** Squashing or rebasing it replaces the sub-PRs' commits, so the walk cannot see them; delete those branches by hand.
+- **Replay or dry-run a cleanup:** in a repo's Actions tab run *branch-cleanup* with a merged PR number (it defaults to dry run), or locally `scripts/branch-cleanup.sh --repo OWNER/REPO --pr N --dry-run`.
+- **Re-create `dev` from `main` after each promotion.** The promotion merge commit lands on `main` but not on `dev`, so the two drift apart. Resetting `dev` to `main` right after promoting keeps `dev` a clean fast-forward base for the next cycle:
 
   ```bash
   git switch main && git pull
   git switch -C dev && git push --force-with-lease origin dev
   ```
 
-- **No stale feature branches.** Once a branch is merged (and auto-deleted), don't resurrect it; branch fresh from the integration branch for the next issue.
+- **No stale feature branches.** Once a branch is merged and cleaned up, don't resurrect it; branch fresh from the integration branch for the next issue.
 
 ### Epics: many issues, one atomic unit
 

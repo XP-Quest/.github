@@ -1,0 +1,66 @@
+name: branch-cleanup (reusable)
+
+# Org-wide cleanup of merged feature branches, run when a PR is merged into a
+# repo's default branch (`main`). Called by a thin `branch-cleanup.yml` caller
+# in each repo. GitHub's native "Automatically delete head branches" cannot
+# exempt the permanent `N-trivial-fixes` branches or filter by base, so it stays
+# off and this does the deleting instead. See SR_ED_CONVENTIONS.md "Branch
+# hygiene" for the rules; the logic lives in scripts/branch-cleanup.sh.
+#
+# A branch is deleted when its work reaches `main`: the PR's own head
+# (feature -> main), plus every feature branch carried by a dev -> main
+# promotion. Never `main`, `dev`, `N-trivial-fixes`, forks, a branch with an
+# open PR, or a branch with commits past its merged head.
+#
+# Reusable workflows inherit the caller's `github` context, so the caller's
+# `pull_request` payload is available here without passing it as an input.
+# The script is fetched from the same commit of this repo as this workflow file
+# (`job.workflow_sha`), so a caller pinned to a ref gets matching logic.
+#
+# Callers must grant `contents: write` (delete refs) and `pull-requests: read`.
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        description: Merged PR to clean up after; defaults to the triggering PR.
+        type: string
+        required: false
+        default: ''
+      dry-run:
+        description: Log what would be deleted without deleting.
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch branch-cleanup.sh
+        uses: actions/checkout@v4
+        with:
+          repository: XP-Quest/.github
+          ref: ${{ job.workflow_sha }}
+          sparse-checkout: scripts/branch-cleanup.sh
+          sparse-checkout-cone-mode: false
+          path: xpq-org
+          persist-credentials: false
+
+      - name: Delete merged branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        shell: bash
+        run: |
+          args=(--repo "$REPO" --pr "$PR_NUMBER")
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          bash xpq-org/scripts/branch-cleanup.sh "${args[@]}"
