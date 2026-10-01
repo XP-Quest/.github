@@ -258,8 +258,10 @@ To set up on each machine:
 gh repo clone XP-Quest/.github ~/xpquest/.xpq-org-main
 mkdir -p ~/.claude/skills/xpquest-daily-log
 ln -sfn ~/xpquest/.xpq-org-main/skills/xpquest-daily-log.md ~/.claude/skills/xpquest-daily-log/SKILL.md
-bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh --lock   # one-time lock
 ```
+
+No separate lock step is needed: the skill's first run goes through the update script, which
+leaves the clone locked. To lock straight away, run `bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh --lock`.
 
 To update by hand, run `bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh`. This only
 protects against accidents: `chmod -R u+w` undoes it, so don't.
