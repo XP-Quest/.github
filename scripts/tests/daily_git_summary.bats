@@ -205,6 +205,18 @@ tracker_state_json() {
   grep -q "## xpq-api" "$OUTPUT_DIR/github_summary-${TEST_DATE}.md"
 }
 
+@test "hidden clone under SEARCH_ROOT (.xpq-org-main) is not scanned" {
+  make_repo "xpq-org"
+  make_commit "#42: some work"
+  git clone -q "$REPO_DIR" "$SEARCH_ROOT/.xpq-org-main"
+
+  bash "$SCRIPT" "$TEST_DATE"
+
+  grep -q "## xpq-org" "$(summary_out)"
+  ! grep -q "xpq-org-main" "$(summary_out)" || false
+  [ "$(grep -c "some work" "$(summary_out)")" -eq 1 ]
+}
+
 # ---------------------------------------------------------------------------
 # Layer 2: branch-name fallback attribution
 # ---------------------------------------------------------------------------

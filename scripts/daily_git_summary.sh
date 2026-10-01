@@ -353,7 +353,10 @@ while IFS= read -r git_dir; do
   if [[ -n "$section" ]]; then
     sections+=( "## ${repo_name}"$'\n\n'"${section}" )
   fi
-done < <(find "$SEARCH_ROOT" -maxdepth 3 -name ".git" -type d | sort)
+# Hidden top-level dirs are tooling clones, not working repos: .xpq-org-main (the
+# main-only clone the daily-log skill runs from, #57) would otherwise report every
+# xpq-org commit a second time (#63).
+done < <(find "$SEARCH_ROOT" -maxdepth 3 -name ".git" -type d -not -path "$SEARCH_ROOT/.*" | sort)
 
 # Gather meeting notes
 declare -a meeting_lines=()
