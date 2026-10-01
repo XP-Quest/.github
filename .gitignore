@@ -5,3 +5,6 @@
 # Python bytecode cache
 __pycache__/
 *.pyc
+
+# Claude Code local settings (personal, machine-specific — never shared)
+.claude/settings.local.json
