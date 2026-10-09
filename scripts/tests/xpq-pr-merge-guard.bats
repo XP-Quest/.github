@@ -19,6 +19,13 @@ setup() {
   git -C "$REPO" config user.email "test@example.com"
   git -C "$REPO" config user.name "Test User"
   git -C "$REPO" commit -q --allow-empty -m "#67: init"
+
+  # A second repo, sibling of the first, checked out on main.
+  REPO_MAIN="$BATS_TEST_TMPDIR/repo-main"
+  git init -q -b main "$REPO_MAIN"
+  git -C "$REPO_MAIN" config user.email "test@example.com"
+  git -C "$REPO_MAIN" config user.name "Test User"
+  git -C "$REPO_MAIN" commit -q --allow-empty -m "init"
 }
 
 # on_branch <name>: put the test repo on the given branch.
@@ -26,22 +33,23 @@ on_branch() {
   git -C "$REPO" switch -q -C "$1"
 }
 
-# guard <command>: feed the hook the JSON a Bash tool call would send.
+# guard <command> [cwd]: feed the hook the JSON a Bash tool call would send. The session
+# cwd defaults to the test repo.
 guard() {
   python3 -c '
 import json, sys
 print(json.dumps({"tool_input": {"command": sys.argv[1]}, "cwd": sys.argv[2]}))
-' "$1" "$REPO" | bash "$GUARD"
+' "$1" "${2:-$REPO}" | bash "$GUARD"
 }
 
 assert_denied() {
-  run guard "$1"
+  run guard "$@"
   [ "$status" -eq 0 ]
   [[ "$output" == *'"permissionDecision": "deny"'* ]]
 }
 
 assert_allowed() {
-  run guard "$1"
+  run guard "$@"
   [ "$status" -eq 0 ]
   [ -z "$output" ]
 }
@@ -163,6 +171,19 @@ assert_allowed() {
   on_branch main
   assert_denied 'git push'
   assert_denied 'git push origin'
+}
+
+@test "checks a bare push in the directory the command moved to" {
+  # Launched on a feature branch, the command moves into a repo that is on main.
+  assert_denied "cd $REPO_MAIN && git push"
+  assert_denied 'cd ../repo-main && git push'
+  assert_denied 'git -C ../repo-main push'
+}
+
+@test "does not block a bare push after moving off main onto an issue branch" {
+  # Launched on main, the command moves into a repo that is on an issue branch.
+  assert_allowed "cd $REPO && git push" "$REPO_MAIN"
+  assert_allowed 'cd ../repo && git push' "$REPO_MAIN"
 }
 
 @test "denies pushing HEAD while on dev or main" {

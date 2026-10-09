@@ -101,7 +101,15 @@ def segments(toks):
         yield seg
 
 
-def check_push(args, cpath):
+def resolve_dir(cur, path):
+    # cd - and paths built from variables or substitutions cannot be resolved here.
+    if path == "-" or "$" in path or "`" in path:
+        return cur
+    return os.path.normpath(os.path.join(cur, os.path.expanduser(path)))
+
+
+def check_push(args, cpath, cur):
+    where = os.path.join(cur, os.path.expanduser(cpath)) if cpath else cur
     pos, skip, repo_opt = [], False, False
     for a in args:
         if skip:
@@ -119,7 +127,7 @@ def check_push(args, cpath):
     refspecs = pos if repo_opt else pos[1:]
     branch = None
     if not refspecs:
-        branch = current_branch(cpath)
+        branch = current_branch(where)
         if branch in PROTECTED:
             deny(PUSH_MSG)
         return
@@ -129,15 +137,20 @@ def check_push(args, cpath):
         if dst.startswith("refs/heads/"):
             dst = dst[len("refs/heads/"):]
         if dst in ("HEAD", ""):
-            dst = current_branch(cpath)
+            dst = current_branch(where)
         if dst in PROTECTED:
             deny(PUSH_MSG)
 
 
-def check_text(text):
+def check_text(text, cur):
     for seg in segments(tokens(text)):
+        if seg[0] == "cd":
+            args = [a for a in seg[1:] if not a.startswith("-") or a == "-"]
+            if args:
+                cur = resolve_dir(cur, args[0])
+            continue
         if os.path.basename(seg[0]) in SHELLS and "-c" in seg[1:-1]:
-            check_text(seg[seg.index("-c") + 1])
+            check_text(seg[seg.index("-c") + 1], cur)
             continue
         for i, t in enumerate(seg):
             if os.path.basename(t) != "git":
@@ -151,7 +164,7 @@ def check_text(text):
                     j += 1
                 j += 1
             if j < len(seg) and seg[j] == "push":
-                check_push(seg[j + 1:], cpath)
+                check_push(seg[j + 1:], cpath, cur)
             break
 
 
@@ -172,5 +185,5 @@ if re.search(r"\b(gh|curl|wget)\b", flat) and (
 ):
     deny(MERGE_MSG + " This includes the REST and GraphQL merge calls." + FILE_HINT)
 
-check_text(cmd)
+check_text(cmd, cwd)
 '
