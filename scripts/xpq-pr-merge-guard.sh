@@ -9,7 +9,10 @@
 #
 # Denied:
 #   - gh pr merge, with or without -R/--repo and odd whitespace
-#   - REST PUT .../pulls/<n>/merge and .../merges (when the command also uses gh/curl/wget)
+#   - REST .../pulls/<n>/merge and .../merges, matched by URL whatever the HTTP method, when
+#     the command also uses gh/curl/wget. This denies the read-only GET "was it merged"
+#     check too; use gh pr view --json mergedAt. The method is not parsed: it can come from
+#     a variable, so reading it would only add a way around the rule.
 #   - GraphQL mergePullRequest, enablePullRequestAutoMerge, mergeBranch (same condition)
 #   - git push whose destination is main/master/dev: explicit refspec, HEAD while on one of
 #     them, a bare push while on one of them, or --all/--mirror
