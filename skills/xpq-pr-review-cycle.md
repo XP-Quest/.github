@@ -72,13 +72,19 @@ Check live state with `gh pr view <N> -R XP-Quest/<repo> --json state,isDraft,ba
 Never rely on recall.
 
 - `state` is not `OPEN`: stop and report.
-- `headRefName` must match `^[0-9]+-`. The leading number is the issue, `<issue>`. If not, stop
-  and ask Robin which issue applies.
+- A feature PR has a `headRefName` matching `^[0-9]+-`; the leading number is the issue,
+  `<issue>`. A promotion PR has head `dev` and base `main`; it has no single issue, so
+  `<issues>` are the numbers in the `#N:` prefixes of its commit subjects
+  (`gh pr view <N> -R XP-Quest/<repo> --json commits`). Any other head: stop and ask Robin
+  which issue applies.
+- Promotion PRs: fixes cannot be committed on `dev` (the branch guard blocks it, and the
+  promotion freeze applies). Run Step 2 and triage the threads as usual, but treat every FIX as
+  NEEDS ROBIN with the reason "needs a feature → dev PR", and skip Step 6.
 - Work on the PR's head branch. Run `git status -sb` and `git reflog -3` first; if the tree is
   dirty or HEAD moved unexpectedly, do not switch branches over someone's work. Use a separate
   worktree (`git worktree add`) for the head branch, or ask.
-- Read `gh issue view <issue> -R XP-Quest/<repo> --json title,body,labels`. The issue is the source
-  for the title and description below.
+- Read `gh issue view <issue> -R XP-Quest/<repo> --json title,body,labels` (each issue, for a
+  promotion). The issue is the source for the title and description below.
 - Run `gh auth status`. A `gho_` token with `repo` scope can merge. Say so in the report if that
   is what `gh` is using; the intended token cannot (README, "Credentials"). This is a note,
   not a stop.
@@ -108,7 +114,8 @@ Read the template from the repo: `.github/pull_request_template.md`, falling bac
 Strip the template's HTML comments. Keep the section order.
 
 - **Summary.** Two or three sentences on what changes and why, from the issue's intent and the
-  diff. Start with `Implements #N —`. Do not paste the issue.
+  diff. Start with `Implements #N —` (a promotion: `Promotes dev → main, carrying #a and #b —`).
+  Do not paste the issue.
 - **SR&ED Linkage.** Read the issue's labels. `sred` plus a `wpN` label: link that issue as the
   related research issue and pick the contribution type that the issue and diff support; if the
   choice is not clear, write `[fill in]` and flag it. `engineering` only: `Related research
