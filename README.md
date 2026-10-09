@@ -125,6 +125,8 @@ xpq-org/
 │   ├── xpq-org-main-update.sh      Unlock → fast-forward → relock the read-only .xpq-org-main clone
 │   ├── prune-local-branches.sh     Delete local branches already on origin/dev or origin/main
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
+│   ├── xpq-pr-merge-guard.sh       PreToolUse hook: blocks PR merges and pushes to main/master/dev
+│   ├── pr-unresolved-threads.sh    Lists a PR's unresolved review threads; exit 1 if any
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
 │   ├── hooks/
 │   │   └── commit-msg              Enforces #N: subject format; auto-prepends when possible
@@ -137,10 +139,13 @@ xpq-org/
 │       ├── install-hooks.bats
 │       ├── xpq-org-main-update.bats
 │       ├── prune-local-branches.bats
+│       ├── pr-unresolved-threads.bats
+│       ├── xpq-pr-merge-guard.bats
 │       └── helpers/                Mock gh binary and other test utilities
 │
 ├── skills/
-│   └── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
+│   ├── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
+│   └── xpq-pr-review-cycle.md      Claude Code skill: /xpq-pr-review-cycle [REPO N]
 │
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
 └── README.md                       This file
@@ -226,9 +231,42 @@ bash xpq-org/scripts/install-hooks.sh ~/xpquest/xpq-api
 | Script | Event | Trigger | Action |
 | --- | --- | --- | --- |
 | `xpq-branch-guard.sh` | PreToolUse | Any Write or Edit | Blocks if active branch is not `N-slug` |
-| `xpq-pr-merge-guard.sh` | PreToolUse | `gh pr merge` | Hard-denies autonomous PR merges |
+| `xpq-pr-merge-guard.sh` | PreToolUse | Any Bash | Hard-denies PR merges (`gh pr merge`, the REST and GraphQL merge calls) and `git push` to `main`, `master` or `dev` |
 
-These are registered in `~/.claude/settings.json` and apply to all repos under `~/xpquest/`.
+These are registered in the workspace settings, `~/xpquest/.claude/settings.json`. Claude Code
+reads project settings only from the directory it is launched in, so the guards are active
+only for sessions (and headless `claude -p` runs) started in `~/xpquest` itself. A session
+started inside a repo, such as `~/xpquest/xpq-api`, has neither guard. Launch from `~/xpquest`,
+or pass `--settings ~/xpquest/.claude/settings.json`. The `xpq-pr-review-cycle` skill probes for
+this before it does anything.
+
+The merge guard is a backstop against accidents and injected text, not a security boundary:
+it matches command text and does not see through variables, scripts or `--input` files. Text
+that merely mentions a blocked command (a commit message, a comment body) trips it too; pass
+such text from a file (`git commit -F`, `gh ... --body-file`).
+
+### Credentials
+
+What makes a merge impossible, rather than discouraged, is the token `gh` runs with. The
+stored `gh` login is an OAuth token with `repo` scope on an org admin account, which can merge.
+For Claude's sessions use a fine-grained personal access token instead:
+
+- Resource owner `XP-Quest`, the five repos, an expiry (for example 90 days).
+- Repository permissions: Contents **read**, Pull requests **read and write**, Issues **read and
+  write**, Metadata read, Checks read, Commit statuses read. The REST merge endpoint requires
+  Contents **write**, so this token cannot call it. Pushes use SSH and are unaffected.
+- Add the organization permission Projects (read and write) only if Claude should keep setting
+  board Status.
+
+Keep the token in a file outside OneDrive, mode 600 (for example `~/.config/xpq/claude-gh-token`),
+and start Claude with `GH_TOKEN` set from it: `GH_TOKEN=$(cat ~/.config/xpq/claude-gh-token) claude`.
+`gh` prefers `GH_TOKEN` over the stored login, so your own terminal keeps its admin login.
+The stored login is still readable from Claude's shell (`~/.config/gh/hosts.yml`); removing it
+(`gh auth logout`) and merging on the GitHub web UI closes that gap.
+
+Before relying on it, confirm on a throwaway PR (run these yourself with the `!` prefix) that
+the token is refused by the REST merge endpoint, the GraphQL `mergePullRequest` mutation and
+`enablePullRequestAutoMerge`. GraphQL is not covered by the permission table above.
 
 ---
 
@@ -275,10 +313,26 @@ Invoke from within a Claude Code session:
 | --- | --- |
 | `/xpquest-daily-log [DATE]` | One date (default: yesterday). Always writes/overwrites. |
 | `/xpquest-daily-log --from DATE [--to DATE]` | Date range. Always writes/overwrites. |
+| `/xpq-pr-review-cycle [REPO N]` | Takes one open PR to "ready for you to merge" (below). |
 
 The skill reads the bash-generated `github_summary` as structured input, augments it with
 `gh issue view` body content (the PM/architecture "why"), reads Claude Code session JSONL
 files for narrative context, and writes the enriched output.
+
+### `/xpq-pr-review-cycle [REPO N]`
+
+Takes one open PR to "ready for you to merge". With no arguments it uses the current branch's PR.
+It rewrites a default or template-only PR title and description from the issue, waits for the
+Copilot review, sorts each Copilot thread into FIX, DECLINE or DEFER (a filed issue), makes each
+fix with a test that fails without it, replies on every thread, and resolves them once CI is
+green. `scripts/pr-unresolved-threads.sh` is the final gate. It never merges, and it stops if the
+merge guard is not loaded. To run several PRs at once, start one invocation per PR from
+`~/xpquest`, each in its own worktree.
+
+```bash
+mkdir -p ~/.claude/skills/xpq-pr-review-cycle
+ln -sfn ~/xpquest/.xpq-org-main/skills/xpq-pr-review-cycle.md ~/.claude/skills/xpq-pr-review-cycle/SKILL.md
+```
 
 ---
 
