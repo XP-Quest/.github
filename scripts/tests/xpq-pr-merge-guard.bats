@@ -135,6 +135,17 @@ assert_allowed() {
   assert_denied 'git push origin :dev'
 }
 
+@test "denies a refspec to main when the remote is given with --repo" {
+  assert_denied 'git push --repo=origin main'
+  assert_denied 'git push --repo origin main'
+  assert_denied 'git push --repo=origin HEAD:dev'
+}
+
+@test "allows an issue branch when the remote is given with --repo" {
+  assert_allowed 'git push --repo=origin 67-feature'
+  assert_allowed 'git push --repo origin 67-feature'
+}
+
 @test "denies push --all and --mirror" {
   assert_denied 'git push --all origin'
   assert_denied 'git push --mirror origin'

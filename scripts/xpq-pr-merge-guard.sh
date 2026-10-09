@@ -29,7 +29,7 @@ printf '%s' "$input" | python3 -c '
 import json, os, re, shlex, subprocess, sys
 
 PROTECTED = {"main", "master", "dev"}
-VALUE_OPTS = {"-o", "--push-option", "--repo", "--receive-pack", "--exec"}
+VALUE_OPTS = {"-o", "--push-option", "--receive-pack", "--exec"}
 SHELLS = {"bash", "sh", "zsh", "dash"}
 
 MERGE_MSG = (
@@ -102,17 +102,21 @@ def segments(toks):
 
 
 def check_push(args, cpath):
-    pos, skip = [], False
+    pos, skip, repo_opt = [], False, False
     for a in args:
         if skip:
             skip = False
+        elif a == "--repo" or a.startswith("--repo="):
+            # The remote comes from the option, so every positional is a refspec.
+            repo_opt = True
+            skip = a == "--repo"
         elif a in VALUE_OPTS:
             skip = True
         elif not a.startswith("-"):
             pos.append(a)
     if "--all" in args or "--mirror" in args:
         deny(PUSH_MSG)
-    refspecs = pos[1:]
+    refspecs = pos if repo_opt else pos[1:]
     branch = None
     if not refspecs:
         branch = current_branch(cpath)
