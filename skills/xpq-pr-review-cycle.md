@@ -195,7 +195,8 @@ unresolved and list it with the reason. A short honest list there beats a wrong 
 none covers it, file an Engineering Task issue (labels `engineering`; body follows the headings in
 `.github/ISSUE_TEMPLATE/engineering-task.yml`), referencing the PR and thread. Default to
 Engineering, not Research (CLAUDE.md §11). Set Type=Bug only for a bug. Link the issue in the
-thread reply.
+thread reply. DEFER files an issue and nothing else: no branch, no commit and no PR for the
+deferred work.
 
 ## Step 6: Fix loop
 
@@ -223,6 +224,10 @@ one commit.
 After pushing, repeat Step 3 for a re-review on the new head (up to 10 minutes). New Copilot
 threads are another round, up to three rounds in total. If it is still producing threads after
 that, stop and report.
+
+Keep the ids of the threads you have already triaged. Threads stay unresolved until Step 8, so
+each re-review query returns the old ids together with the new ones. In a later round, triage
+only ids that are not in your list, and reply once per thread.
 
 ## Step 7: CI
 
