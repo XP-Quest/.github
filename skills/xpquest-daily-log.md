@@ -199,7 +199,7 @@ Act on the `action` field. Do not open any file for a date whose action is `none
 | `sred` | Enriched, no SR&ED log, and the daily log's `## SR&ED Activity` section may record SR&ED work. | `sred=gap`: fresh mode for the SR&ED log only (Step 10). `sred=check`: the section is not in the template form; read it, and treat it as a gap only if it records SR&ED work. |
 | `merge+sred` | Both of the above. | Merge mode for the daily log, and handle the SR&ED log as for `sred`. |
 
-If the script exits non-zero, tell Robin the error and stop; do not fall back to classifying
+If the script exits non-zero, tell the user the error and stop; do not fall back to classifying
 by hand.
 
 Print `=== Processing DATE ===` before each date that requires fresh or merge-mode work.
