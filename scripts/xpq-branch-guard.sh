@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-[[ "$PWD" == /home/rcoe/xpquest* ]] || exit 0
+[[ "$PWD" == "$HOME"/xpquest* ]] || exit 0
 
 input=$(cat)
 

@@ -142,6 +142,7 @@ xpq-org/
 │       ├── xpq-org-main-update.bats
 │       ├── prune-local-branches.bats
 │       ├── pr-unresolved-threads.bats
+│       ├── xpq-branch-guard.bats
 │       ├── xpq-pr-merge-guard.bats
 │       └── helpers/                Mock gh binary and other test utilities
 │

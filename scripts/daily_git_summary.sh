@@ -52,7 +52,7 @@ else
   summary_json=$(ls -t /mnt/c/Users/*/.xpquest/"${DATE_FILE}" 2>/dev/null | head -1 || true)
 fi
 
-# Identify this machine for cross-host Time Tracking merge (see below). Robin runs
+# Identify this machine for cross-host Time Tracking merge (see below). The user runs
 # antman and flash, never simultaneously, and neither the Tracker JSON nor Claude
 # session transcripts are synced between them (see XP-Quest/.github#41) — the
 # shared OneDrive Daily-Logs output is the only thing both machines see, so it is
@@ -73,9 +73,9 @@ HOST_ID=$(printf '%s' "${HOST_ID:-unknown-host}" | tr '[:upper:]' '[:lower:]')
 # host's current projects (replacing only this host's own prior contribution per
 # project, which is what keeps a same-host re-run idempotent), and re-render. The
 # visible block stays organized purely by workstream/project — never by machine —
-# per Robin's instruction that merged content lives in the same sections rather
+# per the user's instruction that merged content lives in the same sections rather
 # than being partitioned by device; only the invisible state comment tracks host
-# attribution, and it is never shown to the skill or to Robin as a rendered line.
+# attribution, and it is never shown to the skill or to the user as a rendered line.
 # The hidden state comment is base64-encoded, not raw JSON: project name,
 # description, client, or host id come from the Tracker widget (not something
 # this script controls), and a raw '-->' inside any of them would close the HTML

@@ -54,7 +54,7 @@ Every code change is anchored to a GitHub issue. The issue is the persistent *wh
 
 ### Rules
 
-1. **Every change has a GitHub issue.** Before making any change — requested by Robin or proposed by Claude — confirm a tracking issue exists in the relevant repo. If none exists, create one using the appropriate template (`sred-research`, `experiment-log`, or `engineering-task`). No issue, no commit.
+1. **Every change has a GitHub issue.** Before making any change — requested by the founder or proposed by Claude — confirm a tracking issue exists in the relevant repo. If none exists, create one using the appropriate template (`sred-research`, `experiment-log`, or `engineering-task`). No issue, no commit.
 
 2. **Branch names embed the issue number.** Format: `<issue>-<short-slug>`, lowercase and hyphenated. Examples: `42-semantic-chunker-baseline`, `58-oidc-ingress-filter`. This makes the issue reference recoverable from the branch and is the precondition for Rule 3.
 
@@ -68,7 +68,7 @@ Every code change is anchored to a GitHub issue. The issue is the persistent *wh
 
 ### Worked example
 
-Robin: *"Pick a chunking strategy for the résumé corpus and start with a fixed-size baseline."*
+Founder: *"Pick a chunking strategy for the résumé corpus and start with a fixed-size baseline."*
 
 1. Search `XP-Quest/xpq-api` issues. None covers this.
 2. File an SR&ED Research Issue, work package WP1. GitHub assigns **#42**: *"Implement semantic chunking baseline for résumé documents."*
@@ -133,10 +133,10 @@ The commit conventions above govern *what lands on a branch*. This section gover
 XP Quest is on the free GitHub plan: no server-side branch protection, no required reviews, no CODEOWNERS. The gates below are **conventions the solo developer keeps by habit**, not rules the platform enforces. They are written so that following them produces a clean, defensible history without any paid tooling.
 
 - **feature → `dev`:** open a PR. This is **self-managed**: the author merges without a review gate. The merge integrates the change on `dev` so it can be validated on the **local** stack in that repo's scope. The PR body carries the issue keyword per the close-on-merge rule below.
-- **`dev` → `main` (promotion):** open a PR. **This is the acceptance gate and it requires Robin's review.** Promote **whenever `dev` is green locally**. Promotions are meant to be frequent and small, and **promoting mid-epic is normal**. The promotion PR is where issues close (next rule). Its test plan includes a cross-repo system test from `main` on the local stack.
+- **`dev` → `main` (promotion):** open a PR. **This is the acceptance gate and it requires the founder's review.** Promote **whenever `dev` is green locally**. Promotions are meant to be frequent and small, and **promoting mid-epic is normal**. The promotion PR is where issues close (next rule). Its test plan includes a cross-repo system test from `main` on the local stack.
 - **Release tag on `main`:** cut deliberately, when a standalone issue or an epic is complete (see *Deployment lifecycle*).
 
-Never open a PR from a feature branch straight to `main`. The one exception is a prod-only CI/infra change that can't be validated on `dev` (e.g. the production deploy workflow or Azure resource config): branch from `main` and PR to `main` directly. Claude must never merge a PR autonomously; Robin merges (self-managed means *Robin* merges his own dev-bound PRs without ceremony, not that the agent does).
+Never open a PR from a feature branch straight to `main`. The one exception is a prod-only CI/infra change that can't be validated on `dev` (e.g. the production deploy workflow or Azure resource config): branch from `main` and PR to `main` directly. Claude must never merge a PR autonomously; the founder merges (self-managed means *the founder* merges his own dev-bound PRs without ceremony, not that the agent does).
 
 ### Deployment lifecycle (Azure environments)
 
@@ -243,7 +243,7 @@ current pipeline.)
 
 ## Multi-machine daily-log merge
 
-Robin develops on two machines (desktop **antman**, laptop **flash**, never simultaneously).
+The founder develops on two machines (desktop **antman**, laptop **flash**, never simultaneously).
 Both can accumulate Time Tracker hours and Claude session transcripts for the same calendar
 date. Neither of those raw, per-machine inputs is synced between machines — that was
 evaluated and deliberately skipped (2026-09-15): building sync infrastructure for Tracker
@@ -271,7 +271,7 @@ is the one thing both machines read and write for a given date:
   adds only that delta **into the existing sections** — never into a device-specific block.
   Hand-filled SR&ED qualitative fields (`Technological Uncertainty`, `Hypothesis`, `Outcome /
   Result`, `Advancement of Knowledge`) are never touched by a merge run; only `[fill in]`
-  placeholders Robin hasn't yet replaced are left as-is, everything else he's written is
+  placeholders the founder hasn't yet replaced are left as-is, everything else they have written is
   permanent once saved.
 - **Commits**: recomputed fresh every run from `--branches --tags --remotes`, so they come out
   identical regardless of which machine runs the script, provided both have fetched — no

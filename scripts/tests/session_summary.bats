@@ -9,7 +9,7 @@
 # belonged with.
 #
 # Transcripts are synthesized in a temp dir and injected via --sessions-dir, so
-# the tests never touch Robin's real ~/.claude transcripts.
+# the tests never touch the user's real ~/.claude transcripts.
 
 SCRIPT="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/session_summary.py"
 
@@ -22,7 +22,7 @@ setup() {
   SESSIONS_DIR="$TEST_DIR/sessions"
   mkdir -p "$SESSIONS_DIR"
 
-  # Pin the zone: bucketing is defined against Robin's local time, and the
+  # Pin the zone: bucketing is defined against the user's local time, and the
   # script resolves it from TZ at runtime (EST/EDT handled automatically).
   export TZ="America/Toronto"
 }
@@ -202,13 +202,13 @@ run_script() {
 #
 # Slash-command invocations inject the skill's own SKILL.md body as a `type: user`
 # event. It has no `<` or `[{` prefix and is long, so the text filters alone let it
-# through — it reached the 2026-07-11 daily log as if Robin had typed it. The
+# through — it reached the 2026-07-11 daily log as if the user had typed it. The
 # transcript flags these `isMeta: true`.
 # ---------------------------------------------------------------------------
 
 @test "isMeta events are excluded (slash-command skill preamble)" {
   meta_event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" \
-    "Base directory for this skill: /home/rcoe/.claude/skills/xpquest-daily-log"
+    "Base directory for this skill: /home/user/.claude/skills/xpquest-daily-log"
 
   run_script "2026-07-11"
 
@@ -229,13 +229,13 @@ You are helping the user schedule a recurring cloud agent."
 @test "an isMeta preamble does not crowd out real messages in the same session" {
   # Regression: on 2026-07-11 the preamble consumed 2 of the 5 printed slots.
   meta_event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:00:00.000Z" \
-    "Base directory for this skill: /home/rcoe/.claude/skills/xpquest-daily-log"
+    "Base directory for this skill: /home/user/.claude/skills/xpquest-daily-log"
   event "$SESSIONS_DIR/a.jsonl" "2026-07-11T13:05:00.000Z" "user" \
-    "the real instruction Robin actually typed into the session"
+    "the real instruction the user actually typed into the session"
 
   run_script "2026-07-11" --max-messages 1
 
-  [[ "$output" == *"the real instruction Robin actually typed"* ]]
+  [[ "$output" == *"the real instruction the user actually typed"* ]]
   [[ "$output" != *"Base directory for this skill"* ]]
 }
 
@@ -426,4 +426,23 @@ PY
 
   message_line="$(grep '^x' <<<"$output")"
   [ "${#message_line}" -eq 400 ]
+}
+
+# ---------------------------------------------------------------------------
+# Default sessions directory
+# ---------------------------------------------------------------------------
+
+@test "default sessions dir is derived from the home directory" {
+  # Claude Code names the folder after the launch directory (~/xpquest), with every
+  # non-alphanumeric character replaced by a dash.
+  export HOME="$TEST_DIR/home"
+  default_dir="$HOME/.claude/projects/$(sed 's/[^A-Za-z0-9]/-/g' <<< "$HOME/xpquest")"
+  mkdir -p "$default_dir"
+  event "$default_dir/a.jsonl" "2026-07-11T16:00:00.000Z" "user" \
+    "work found through the default sessions directory"
+
+  XPQ_SESSIONS_DIR= run env -u XPQ_SESSIONS_DIR python3 "$SCRIPT" "2026-07-11"
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"work found through the default sessions directory"* ]]
 }
