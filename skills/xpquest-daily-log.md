@@ -175,22 +175,32 @@ that has never been folded in. Never sync those raw per-machine inputs to make t
 visible — the shared output files are the accumulation point, not the inputs (Robin's call,
 2026-09-15: syncing raw JSON/jsonl wasn't worth building; a solid merge on read is enough).
 
-For each DATE, classify status before doing any Claude work:
+Classify every date in scope with the script, before doing any Claude work — do not read the
+logs to classify them yourself:
 
-- **missing / starter** — `daily_log-DATE.md` doesn't exist, or still contains
-  `"Session transcripts not included"`. Proceed in **fresh** mode (Step 9/10/11 write the
-  file from scratch, as today).
-- **enriched, SR&ED gap** — `daily_log-DATE.md` is enriched but classifies SR&ED-eligible
-  content while `sred_daily_log-DATE.md` is missing. Proceed in fresh mode for the SR&ED log
-  only (Step 10); the daily log itself still goes through the merge check below, since this
-  case can co-occur with new session evidence from this host.
-- **enriched, no gap** — run Step 5 (session digest) for this host now. If it prints nothing,
-  this host has no local evidence not already reflected — git commits and Time Tracking are
-  already host-independent by the time they reach this skill (daily_git_summary.sh
-  cross-host-merges Time Tracking itself; commits are identical from any host that has
-  fetched), so there is nothing left this host could add. Mark `exists` and move on. If it
-  prints session content, proceed in **merge** mode (Step 9/10/11 read-then-add-delta, never
-  a full `Write`).
+```bash
+bash /home/rcoe/xpquest/.xpq-org-main/scripts/daily_log_status.sh FROM TO
+```
+
+It prints one tab-separated line per date:
+
+```text
+2026-07-11	daily=enriched	sred=none	sessions=0	action=skip
+```
+
+Act on the `action` field. Do not open any file for a date whose action is `none` or `skip`.
+
+| action | Meaning | Do |
+| --- | --- | --- |
+| `none` | No daily log, no git summary, no session content on this host. | Nothing to log. Report `skipped (no content)`. |
+| `fresh` | `daily=missing` or `daily=starter` (the draft still contains `"Session transcripts not included"`). | **Fresh** mode: Step 9/10/11 write the files from scratch. |
+| `skip` | Enriched, and this host has no session content for the date. Git commits and Time Tracking are already host-independent by the time they reach this skill, so there is nothing this host could add. | Report `exists`. |
+| `merge` | Enriched, and this host has session content (`sessions` > 0). | **Merge** mode: Step 9/10/11 read-then-add-delta, never a full `Write`. |
+| `sred` | Enriched, no SR&ED log, and the daily log's `## SR&ED Activity` section may record SR&ED work. | `sred=gap`: fresh mode for the SR&ED log only (Step 10). `sred=check`: the section is not in the template form; read it, and treat it as a gap only if it records SR&ED work. |
+| `merge+sred` | Both of the above. | Merge mode for the daily log, and handle the SR&ED log as for `sred`. |
+
+If the script exits non-zero, tell Robin the error and stop; do not fall back to classifying
+by hand.
 
 Print `=== Processing DATE ===` before each date that requires fresh or merge-mode work.
 
@@ -332,7 +342,7 @@ Apply WP classification to all content (commits, issue bodies, session bullets):
 
 If zero content (no commits, no sessions, no meetings) → print "Nothing to log for DATE" and skip.
 
-**Merge mode** (Step 2 classified this date `enriched, no gap` with new session content — a
+**Merge mode** (Step 2 action `merge` or `merge+sred` — a
 second machine adding to a date the first machine already wrote): do not `Write` a fresh file.
 `Read` the existing `$DAILY_LOG` first, then use `Edit` to add only what this host's evidence
 (Step 5's session digest, plus any commit not already present verbatim — see Step 2) contributes
