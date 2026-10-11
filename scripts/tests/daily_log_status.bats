@@ -29,16 +29,16 @@ teardown() {
   rm -rf "$TEST_DIR"
 }
 
-# session <name> <date> — a transcript with one human message at local noon on <date>.
+# session <name> <date> [text] — a transcript with one human message at local noon on <date>.
 session() {
-  python3 - "$XPQ_SESSIONS_DIR/$1.jsonl" "$2" <<'PY'
+  python3 - "$XPQ_SESSIONS_DIR/$1.jsonl" "$2" "${3:-work on the xpq-org daily log tooling today}" <<'PY'
 import json, sys
-path, date = sys.argv[1:3]
+path, date, text = sys.argv[1:4]
 with open(path, "a", encoding="utf-8") as f:
     f.write(json.dumps({
         "timestamp": f"{date}T16:00:00.000Z",
         "type": "user",
-        "message": {"content": "work on the xpq-org daily log tooling today"},
+        "message": {"content": text},
     }) + "\n")
 PY
 }
@@ -182,6 +182,15 @@ field() {
 
   [ "$(field sessions)" = "2" ]
   [ "$(field action)" = "merge" ]
+}
+
+@test "a message line that looks like a session header is not counted" {
+  enriched_log "$DATE"
+  session a "$DATE" $'pasted digest output follows\n--- /tmp/other-session.jsonl\nand more text'
+
+  run "$SCRIPT" "$DATE"
+
+  [ "$(field sessions)" = "1" ]
 }
 
 @test "sessions on another date are not counted" {
