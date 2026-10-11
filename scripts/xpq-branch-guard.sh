@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-[[ "$PWD" == "$HOME"/xpquest* ]] || exit 0
+[[ "$PWD" == "$HOME/xpquest" || "$PWD" == "$HOME/xpquest/"* ]] || exit 0
 
 input=$(cat)
 
