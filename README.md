@@ -121,6 +121,7 @@ xpq-org/
 ├── scripts/
 │   ├── daily_git_summary.sh        Commit summary for one date → github_summary-DATE.md
 │   ├── historical_git_summary.sh   Batch runner with checkpoint; backfills a date range
+│   ├── daily_log_status.sh         Per-date log state and action for the daily-log skill (read-only)
 │   ├── branch-cleanup.sh           Delete branches whose work reached main (run by the workflow)
 │   ├── xpq-org-main-update.sh      Unlock → fast-forward → relock the read-only .xpq-org-main clone
 │   ├── prune-local-branches.sh     Delete local branches already on origin/dev or origin/main
@@ -135,6 +136,7 @@ xpq-org/
 │       ├── branch-cleanup.bats
 │       ├── commit-msg.bats
 │       ├── daily_git_summary.bats
+│       ├── daily_log_status.bats
 │       ├── historical_git_summary.bats
 │       ├── install-hooks.bats
 │       ├── xpq-org-main-update.bats
@@ -189,6 +191,22 @@ Subsequent runs (daily, scheduled, or manual):
 ```bash
 bash xpq-org/scripts/historical_git_summary.sh
 ```
+
+### `daily_log_status.sh FROM [TO]`
+
+Prints one tab-separated line per date (inclusive range) with the state of that date's logs
+and what the `/xpquest-daily-log` skill should do with it:
+
+```text
+2026-07-11	daily=enriched	sred=none	sessions=0	action=skip
+```
+
+`daily` is `missing`, `starter` or `enriched`; `sred` is `present`, `none`, `gap` or `check`;
+`sessions` counts this host's transcripts with messages on the date; `action` is `none`,
+`fresh`, `skip`, `merge`, `sred` or `merge+sred`. The header comment in the script defines
+each value. The script only reads. Run it after the git summaries exist.
+
+Env overrides: `OUTPUT_DIR`, `XPQ_SESSIONS_DIR`.
 
 ### `prune-local-branches.sh [--dry-run] [--include-current] [--root DIR] [REPO ...]`
 
