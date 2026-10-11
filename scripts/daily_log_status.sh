@@ -81,7 +81,7 @@ sred_state() {
     echo none
   elif grep -Eq '^- \*\*(WP[1-6]|Cross-cutting)\*\*' <<< "$section"; then
     echo gap
-  elif [[ "$section" == None* ]]; then
+  elif [[ "$section" =~ ^None([[:space:][:punct:]]|$) ]]; then
     echo none
   else
     echo check
@@ -94,11 +94,10 @@ while [[ ! "$current" > "$TO" ]]; do
   sred_log="${OUTPUT_DIR}/sred_daily_log-${current}.md"
   summary="${OUTPUT_DIR}/github_summary-${current}.md"
 
-  if ! digest=$(python3 "${SCRIPT_DIR}/session_summary.py" "$current"); then
+  if ! sessions=$(python3 "${SCRIPT_DIR}/session_summary.py" "$current" --count); then
     echo "Error: session_summary.py failed for $current." >&2
     exit 2
   fi
-  sessions=$(grep -c '^--- .*\.jsonl$' <<< "$digest" || true)
 
   if [[ ! -f "$daily_log" ]]; then
     daily=missing

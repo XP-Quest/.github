@@ -446,3 +446,37 @@ PY
   [ "$status" -eq 0 ]
   [[ "$output" == *"work found through the default sessions directory"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# --count
+# ---------------------------------------------------------------------------
+
+@test "--count prints the number of sessions with messages on the date" {
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T16:00:00.000Z" "user" \
+    "first session working on the chunker baseline"
+  event "$SESSIONS_DIR/b.jsonl" "2026-07-11T17:00:00.000Z" "user" \
+    "second session working on the daily log tooling"
+  event "$SESSIONS_DIR/c.jsonl" "2026-07-12T16:00:00.000Z" "user" \
+    "a session on a different date entirely"
+
+  run_script "2026-07-11" --count
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "2" ]
+}
+
+@test "--count prints 0 when no session has messages on the date" {
+  run_script "2026-07-11" --count
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "0" ]
+}
+
+@test "--count is not inflated by a message line that looks like a session header" {
+  event "$SESSIONS_DIR/a.jsonl" "2026-07-11T16:00:00.000Z" "user" \
+    $'pasted digest output follows\n--- /tmp/other-session.jsonl\nand more text'
+
+  run_script "2026-07-11" --count
+
+  [ "$output" = "1" ]
+}

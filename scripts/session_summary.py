@@ -6,7 +6,11 @@ skill (Step 5) folds into the daily log. Extracted from the skill body so the
 logic is versioned, reviewable, and covered by tests — see XP-Quest/.github#37.
 
 Usage: session_summary.py YYYY-MM-DD [--sessions-dir DIR] [--max-messages N]
-                                     [--truncate N]
+                                     [--truncate N] [--count]
+
+With --count, prints only the number of session files that have messages on DATE.
+Callers that need the number use this rather than parsing the digest, since message
+text can itself contain lines that look like the `--- path` header.
 
 Output (stdout), one block per session file that has messages on DATE:
 
@@ -80,6 +84,11 @@ def parse_args(argv):
         type=int,
         default=DEFAULT_TRUNCATE,
         help="Truncate each message to N characters (default: %(default)s)",
+    )
+    p.add_argument(
+        "--count",
+        action="store_true",
+        help="Print only the number of sessions with messages on DATE",
     )
     return p.parse_args(argv)
 
@@ -207,6 +216,9 @@ def main(argv=None):
         return 1
 
     sessions = collect(args.sessions_dir, date, args.truncate)
+    if args.count:
+        print(len(sessions))
+        return 0
     for path, messages in sessions.items():
         print(f"--- {path}")
         for message in messages[: args.max_messages]:
