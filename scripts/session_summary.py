@@ -22,7 +22,7 @@ Output (stdout), one block per session file that has messages on DATE:
 Transcripts are JSONL; each line is one event carrying an ISO-8601 UTC
 `timestamp`. Messages are bucketed by LOCAL calendar date, not by the raw UTC
 prefix: `daily_git_summary.sh` groups commits with `date -d "$TARGET_DATE ..."`
-in the local zone, and Robin's working day runs into the evening — past ~20:00
+in the local zone, and the user's working day runs into the evening — past ~20:00
 EDT (UTC-4) a message is already after midnight UTC, so UTC-prefix matching
 shifts a whole evening of session bullets one day ahead of the commits they
 belong with. `astimezone()` resolves the zone from TZ at runtime, so EST/EDT is
@@ -38,12 +38,25 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from datetime import datetime
 
-DEFAULT_SESSIONS_DIR = "~/.claude/projects/-home-rcoe-xpquest"
 DEFAULT_MAX_MESSAGES = 5
 DEFAULT_TRUNCATE = 400
+
+
+def default_sessions_dir():
+    """Claude Code's transcript folder for sessions launched from ~/xpquest.
+
+    Claude Code names a project's folder after its launch directory, with every
+    non-alphanumeric character replaced by a dash.
+    """
+    workspace = os.path.expanduser("~/xpquest")
+    return os.path.expanduser("~/.claude/projects/") + re.sub(
+        r"[^A-Za-z0-9]", "-", workspace
+    )
+
 
 # Covers both "[Request interrupted by user]" and the "…for tool use" variant.
 INTERRUPTION_PREFIX = "[Request interrupted"
@@ -57,7 +70,7 @@ def parse_args(argv):
     p.add_argument("date", help="Local calendar date to digest (YYYY-MM-DD)")
     p.add_argument(
         "--sessions-dir",
-        default=os.environ.get("XPQ_SESSIONS_DIR", DEFAULT_SESSIONS_DIR),
+        default=os.environ.get("XPQ_SESSIONS_DIR", default_sessions_dir()),
         help="Directory of *.jsonl transcripts (default: %(default)s)",
     )
     p.add_argument(
@@ -120,7 +133,7 @@ def message_text(event):
 
 
 def is_injected(event):
-    """True if the harness synthesized this event rather than Robin typing it.
+    """True if the harness synthesized this event rather than the user typing it.
 
     Slash-command invocations inject the skill's own SKILL.md body as a
     `type: user` event. It carries no `<` or `[{` prefix and is long, so the

@@ -52,7 +52,7 @@ git, is the fix.
 
 ## Preflight: Update the main-only tooling clone
 
-This skill and every script it calls run from `/home/rcoe/xpquest/.xpq-org-main` — a dedicated
+This skill and every script it calls run from `~/xpquest/.xpq-org-main` — a dedicated
 clone of `XP-Quest/.github` that stays on `main` and is never used for coding (see
 XP-Quest/.github#57). That keeps the code producing claim evidence identical on every machine
 and independent of whatever branch the working `~/xpquest/xpq-org` clone has checked out.
@@ -62,16 +62,16 @@ Fast-forward it before doing anything else. The clone's working tree is kept rea
 fast-forwards, and relocks it, including when the pull fails:
 
 ```bash
-bash /home/rcoe/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh
+bash ~/xpquest/.xpq-org-main/scripts/xpq-org-main-update.sh
 ```
 
-- If the directory is missing, or `git -C /home/rcoe/xpquest/.xpq-org-main branch --show-current`
-  is not `main`, stop and point Robin at the setup in the xpq-org README ("Claude Code skills").
+- If the directory is missing, or `git -C ~/xpquest/.xpq-org-main branch --show-current`
+  is not `main`, stop and point the user at the setup in the xpq-org README ("Claude Code skills").
 - If the script exits 2 (missing clone or not on `main`), treat it like the case above.
-- If the pull fails (exit 1: offline, or the clone has local changes), warn Robin with the error and
+- If the pull fails (exit 1: offline, or the clone has local changes), warn the user with the error and
   continue on the existing checkout. Note the warning in the Step 12 report.
 - If the pull changed this file (`skills/xpquest-daily-log.md`), this run is still following
-  the instructions loaded before the pull — tell Robin and suggest re-invoking the skill.
+  the instructions loaded before the pull — tell the user and suggest re-invoking the skill.
 
 ---
 
@@ -83,12 +83,12 @@ file is missing for a date in scope, the script does not error — it silently o
 `## Time Tracking` block, and the resulting daily/SR&ED logs get generated with no tracked
 hours and no warning (see XP-Quest/.github#47).
 
-Before calling the script, **ask Robin and block on his answer**:
+Before calling the script, **ask the user and block on the answer**:
 
     Have you exported the Time Tracker Daily Summary for the date(s) in scope? [y/n]
 
 - If yes (`y`/`yes`), proceed to Step 1.
-- If no, unanswered, or anything else, stop here. Tell him to export from the widget first, then re-run the skill. Do not call `historical_git_summary.sh`/`daily_git_summary.sh` until he confirms.
+- If no, unanswered, or anything else, stop here. Tell the user to export from the widget first, then re-run the skill. Do not call `historical_git_summary.sh`/`daily_git_summary.sh` until he confirms.
 
 ---
 
@@ -138,10 +138,10 @@ Call the bash script, passing any arguments through:
 
 ```bash
 # no args, or --from/--to flags:
-bash /home/rcoe/xpquest/.xpq-org-main/scripts/historical_git_summary.sh [--from DATE] [--to DATE]
+bash ~/xpquest/.xpq-org-main/scripts/historical_git_summary.sh [--from DATE] [--to DATE]
 
 # single positional date — call the per-date script directly:
-bash /home/rcoe/xpquest/.xpq-org-main/scripts/daily_git_summary.sh DATE
+bash ~/xpquest/.xpq-org-main/scripts/daily_git_summary.sh DATE
 ```
 
 `historical_git_summary.sh`:
@@ -155,7 +155,7 @@ bash /home/rcoe/xpquest/.xpq-org-main/scripts/daily_git_summary.sh DATE
 Use the FROM/TO values captured before the call to build the iteration list. Set per-date paths:
 
 ```text
-LOGS_DIR="/home/rcoe/xpquest/xpq-project/Daily-Logs"
+LOGS_DIR="$HOME/xpquest/xpq-project/Daily-Logs"
 DAILY_LOG="${LOGS_DIR}/daily_log-${DATE}.md"
 SRED_LOG="${LOGS_DIR}/sred_daily_log-${DATE}.md"
 GITHUB_SUMMARY="${LOGS_DIR}/github_summary-${DATE}.md"
@@ -172,14 +172,14 @@ XP-Quest/.github#41), but the Time Tracker JSON and Claude session transcripts t
 do **not** — each machine only ever sees its own. So a date already enriched by one machine
 is not necessarily complete: the other machine may hold session evidence for that same date
 that has never been folded in. Never sync those raw per-machine inputs to make them mutually
-visible — the shared output files are the accumulation point, not the inputs (Robin's call,
+visible — the shared output files are the accumulation point, not the inputs (the user's call,
 2026-09-15: syncing raw JSON/jsonl wasn't worth building; a solid merge on read is enough).
 
 Classify every date in scope with the script, before doing any Claude work — do not read the
 logs to classify them yourself:
 
 ```bash
-bash /home/rcoe/xpquest/.xpq-org-main/scripts/daily_log_status.sh FROM TO
+bash ~/xpquest/.xpq-org-main/scripts/daily_log_status.sh FROM TO
 ```
 
 It prints one tab-separated line per date:
@@ -232,13 +232,13 @@ Cache results by `repo#NN`. Use `first_line` to write "why" context, not just "w
 Call the script — do not reimplement this logic in the skill:
 
 ```bash
-python3 /home/rcoe/xpquest/.xpq-org-main/scripts/session_summary.py "$DATE"
+python3 ~/xpquest/.xpq-org-main/scripts/session_summary.py "$DATE"
 ```
 
 It prints one block per session file that has messages on DATE:
 
 ```text
---- /home/rcoe/.claude/projects/-home-rcoe-xpquest/<session-uuid>.jsonl
+--- /home/<user>/.claude/projects/-home-<user>-xpquest/<session-uuid>.jsonl
 <message text>
 
 <message text>
@@ -254,14 +254,14 @@ Empty output means no session activity on that date; proceed without session con
   commits. (Anything after ~8pm EDT already falls after midnight UTC; a naive UTC-prefix match
   shifts an entire evening's session bullets one calendar day ahead of the commits they belong
   with.)
-- Drops everything the harness synthesized rather than Robin typing: `isMeta` events (a slash
+- Drops everything the harness synthesized rather than the user typing: `isMeta` events (a slash
   command injects the invoked skill's own SKILL.md body as a user message), `< … >` tool/hook
   payloads, `[{ … }]` block arrays, `[Request interrupted by user…]` markers, and
   acknowledgements of 20 characters or fewer.
 - Prints the first 5 messages per session, each truncated to 400 characters. Override with
   `--max-messages N` / `--truncate N` when a date needs more detail.
 
-Everything the script prints is therefore Robin's own input — take it at face value.
+Everything the script prints is therefore the user's own input — take it at face value.
 
 Notes:
 
@@ -278,7 +278,7 @@ For each session file with matching messages:
 
 ## Step 6: Read meeting notes
 
-Glob: `/home/rcoe/xpquest/xpq-project/Meetings/${DATE}-*.md`
+Glob: `~/xpquest/xpq-project/Meetings/${DATE}-*.md`
 
 Read each. Extract frontmatter fields: `category`, `attendees`, `topic`. Skip if none found.
 
@@ -315,7 +315,7 @@ list them, but their absence is expected and fine.
 **Ask when time isn't obviously XPQ-correlatable.** If a `## Time Tracking` entry cannot be
 confidently tied to XP Quest from its code/name/description plus the day's commits and
 sessions (e.g. an unfamiliar code, or `xpq-eng` hours with no matching XPQ evidence anywhere),
-do NOT guess its workstream or silently file it — pause and ask Robin which XPQ work (or
+do NOT guess its workstream or silently file it — pause and ask the user which XPQ work (or
 client) the time belongs to before writing the log. Recognized codes (`xpq-eng*`, `xpq-sred*`,
 `xpq-techops`) don't need this; only genuinely ambiguous entries do.
 
@@ -353,7 +353,7 @@ that is not already there:
 - Insert new bullets **into the existing matching group** — under the same `**repo**
   [#NN: ...]` issue block if one is already present, or as a new issue block appended within
   its existing section (`## Engineering / R&D`, `## SR&ED Activity`, etc.) if not. Follow
-  Robin's instruction: merged content stays organized **by section/issue, the same way a
+  the user's instruction: merged content stays organized **by section/issue, the same way a
   single-machine run would organize it** — never partitioned into a device-specific block
   (no "## From flash" / "## Antman's additions").
 - If a section the new content belongs in doesn't exist yet in the file, add it in its normal
@@ -413,12 +413,12 @@ Skip if no SR&ED content found.
 **Merge mode**: `Read` the existing `$SRED_LOG` first, then `Edit` in only the delta — same
 dedup rule as Step 9 (by SHA / session path). Two things are load-bearing here:
 
-- **Never overwrite a qualitative field Robin has already filled in** — `Technological
+- **Never overwrite a qualitative field the user has already filled in** — `Technological
   Uncertainty`, `Hypothesis`, `Outcome / Result`, `Advancement of Knowledge`. If a field still
-  literally reads `[fill in]`, leave it that way; it is still pending his input, not "safe to
+  literally reads `[fill in]`, leave it that way; it is still pending the user's input, not "safe to
   invent because it's a placeholder." These fields are primary claim narrative evidence — see
   CLAUDE.md §10's note on contemporaneous documentation — and a merge run silently clobbering
-  Robin's own words would be far worse than the skip-on-overwrite bug this feature replaces.
+  the user's own words would be far worse than the skip-on-overwrite bug this feature replaces.
 - **Work Performed** and **Supporting Evidence** are additive lists — append new bullets not
   already present, in place, same as Step 9.
 - **Hours Logged** is machine-derived (from the Step 7 SR&ED Time Tracking bullets, which
