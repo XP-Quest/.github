@@ -236,6 +236,23 @@ field() {
   [ "$(field action)" = "skip" ]
 }
 
+@test "a word that only starts with None is not read as None" {
+  enriched_log "$DATE" "Nonetheless, chunker experiments were discussed."
+
+  run "$SCRIPT" "$DATE"
+
+  [ "$(field sred)" = "check" ]
+  [ "$(field action)" = "sred" ]
+}
+
+@test "None with nothing after it is not a gap" {
+  enriched_log "$DATE" "None"
+
+  run "$SCRIPT" "$DATE"
+
+  [ "$(field sred)" = "none" ]
+}
+
 @test "an SR&ED section the script cannot classify: check, action sred" {
   enriched_log "$DATE" "Some chunker experiments were discussed."
 

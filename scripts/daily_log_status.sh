@@ -81,7 +81,7 @@ sred_state() {
     echo none
   elif grep -Eq '^- \*\*(WP[1-6]|Cross-cutting)\*\*' <<< "$section"; then
     echo gap
-  elif [[ "$section" == None* ]]; then
+  elif [[ "$section" =~ ^None([[:space:][:punct:]]|$) ]]; then
     echo none
   else
     echo check
