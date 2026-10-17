@@ -230,7 +230,10 @@ go to Step 7 once the last fix is pushed.
 ## Step 7: CI
 
 Do not use `gh pr checks`: it reads check runs, and the fine-grained token cannot (GitHub offers
-no Checks permission for fine-grained tokens). Read the workflow runs on the current head instead:
+no Checks permission for fine-grained tokens). Read the workflow runs on the current head instead.
+
+Re-read the head first: `gh pr view <N> -R XP-Quest/<repo> --json headRefOid`. The value from
+Step 1 is stale once Step 6 has pushed fixes. Use the fresh `headRefOid` everywhere below.
 
 ```bash
 gh run list -R XP-Quest/<repo> --commit <headRefOid> --json name,event,status,conclusion
