@@ -127,6 +127,8 @@ xpq-org/
 │   ├── prune-local-branches.sh     Delete local branches already on origin/dev or origin/main
 │   ├── xpq-branch-guard.sh         PreToolUse hook: blocks edits when not on issue branch
 │   ├── xpq-pr-merge-guard.sh       PreToolUse hook: blocks PR merges and pushes to main/master/dev
+│   ├── xpq-claude-setup.sh         Per-machine Claude Code setup: user-level guard hooks, deny rules
+│   ├── wsl-net.ps1                 Windows-side WSL networking switch, run by /xpq-wsl-network
 │   ├── pr-unresolved-threads.sh    Lists a PR's unresolved review threads; exit 1 if any
 │   ├── install-hooks.sh            Install the commit-msg hook into any git repo
 │   ├── hooks/
@@ -148,7 +150,8 @@ xpq-org/
 │
 ├── skills/
 │   ├── xpquest-daily-log.md        Claude Code skill: /xpquest-daily-log [DATE]
-│   └── xpq-pr-review-cycle.md      Claude Code skill: /xpq-pr-review-cycle [REPO N]
+│   ├── xpq-pr-review-cycle.md      Claude Code skill: /xpq-pr-review-cycle [REPO N]
+│   └── xpq-wsl-network.md          Claude Code skill: /xpq-wsl-network [status|mirrored|tailscale|nat]
 │
 ├── SR_ED_CONVENTIONS.md            Full conventions: issue types, labels, commit rules, SR&ED guidance
 └── README.md                       This file
@@ -259,6 +262,12 @@ started inside a repo, such as `~/xpquest/xpq-api`, has neither guard. Launch fr
 or pass `--settings ~/xpquest/.claude/settings.json`. The `xpq-pr-review-cycle` skill probes for
 this before it does anything.
 
+`scripts/xpq-claude-setup.sh` is the per-machine setup for these guards. Run it once on each
+machine (`--dry-run` previews). It installs both guards as user-level hooks in
+`~/.claude/settings.json`, adds deny rules for PR merges and local native builds, strips
+allow rules that defeat the guards from every `settings.local.json` in the workspace, and
+disables the synced plugins that are not used here. It needs `jq`.
+
 The merge guard is a backstop against accidents and injected text, not a security boundary:
 it matches command text and does not see through variables, scripts or `--input` files. Text
 that merely mentions a blocked command (a commit message, a comment body) trips it too; pass
@@ -335,6 +344,7 @@ Invoke from within a Claude Code session:
 | `/xpquest-daily-log [DATE]` | One date (default: yesterday). Always writes/overwrites. |
 | `/xpquest-daily-log --from DATE [--to DATE]` | Date range. Always writes/overwrites. |
 | `/xpq-pr-review-cycle [REPO N]` | Takes one open PR to "ready for you to merge" (below). |
+| `/xpq-wsl-network [MODE]` | Sets WSL2 networking (mirrored, tailscale or nat) so the dev machines can reach each other. `status` changes nothing. |
 
 The skill reads the bash-generated `github_summary` as structured input, augments it with
 `gh issue view` body content (the PM/architecture "why"), reads Claude Code session JSONL
@@ -355,6 +365,17 @@ guard is not loaded. To run several PRs at once, start one invocation per PR fro
 ```bash
 mkdir -p ~/.claude/skills/xpq-pr-review-cycle
 ln -sfn ~/xpquest/.xpq-org-main/skills/xpq-pr-review-cycle.md ~/.claude/skills/xpq-pr-review-cycle/SKILL.md
+```
+
+### `/xpq-wsl-network [MODE]`
+
+Switches this machine's WSL2 networking between mirrored, Tailscale and NAT. `scripts/wsl-net.ps1`
+does the Windows-side work and needs admin, so the skill launches it through a UAC prompt. It
+states what will change and waits for a yes, except for `status`.
+
+```bash
+mkdir -p ~/.claude/skills/xpq-wsl-network
+ln -sfn ~/xpquest/.xpq-org-main/skills/xpq-wsl-network.md ~/.claude/skills/xpq-wsl-network/SKILL.md
 ```
 
 ---
