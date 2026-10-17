@@ -1,6 +1,6 @@
 ---
 name: xpq-pr-review-cycle
-description: Take an open XP Quest PR from "opened" to "ready for the user to merge". Normalises the PR title and description (issue-derived, not the GitHub default), waits for the Copilot review, triages every Copilot thread into FIX / DECLINE / DEFER, implements fixes with mutation-verified tests, replies on and resolves every thread once CI (or, where the base has no CI, the local test suite) passes, then reports. Never merges. Run as /xpq-pr-review-cycle [<repo> <N>]; with no arguments it uses the PR for the current branch.
+description: Take an open XP Quest PR from "opened" to "ready for the user to merge". Normalises the PR title and description (issue-derived, not the GitHub default), waits for the Copilot review, triages every Copilot thread into FIX / DECLINE / DEFER, implements fixes with mutation-verified tests, replies on every thread, and once CI (or, where the base has no CI, the local test suite) passes, hands the user the list of threads to resolve, then reports. Never merges. Run as /xpq-pr-review-cycle [<repo> <N>]; with no arguments it uses the PR for the current branch.
 ---
 
 # xpq-pr-review-cycle
@@ -271,7 +271,7 @@ or `neutral`.
   `gh pr view <N> -R XP-Quest/<repo> --json mergeable` (`pull_request` workflows do not run on a
   conflicted PR), report it, and keep the threads unresolved. Do not fall back to the local suite.
 
-## Step 8: Reply, then resolve
+## Step 8: Reply, then hand off resolution
 
 Reply on **every** Copilot thread with its disposition. Replies can go out as dispositions are
 decided; a FIX reply goes out after the push that contains it.
@@ -283,17 +283,16 @@ gh api -X POST repos/XP-Quest/<repo>/pulls/<N>/comments/<databaseId>/replies -F 
 Reply format: `FIX in <sha> — <what changed>; test: <test name>`, `DECLINE — <reason>`, or
 `DEFER — filed XP-Quest/<repo>#<n>`.
 
-**Resolve only when all of these hold:** every Copilot thread has a recorded disposition, all fix
+**The user resolves the threads.** The fine-grained token cannot: `resolveReviewThread` returns
+"Resource not accessible by personal access token" with Pull requests read and write. Do not
+call it, and do not switch to another credential to get past it.
+
+**Hand off only when all of these hold:** every Copilot thread has a recorded disposition, all fix
 commits are pushed, and Step 7 passed on the current head (CI green, or the local suite where
-the base has no CI). Then resolve every FIX, DECLINE and DEFER
-thread (CLAUDE.md §8: resolve all of them; a DEFER carries its issue link). Do not resolve a thread
-marked NEEDS USER.
-
-```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -f id=<thread node id>
-```
-
-The id is the thread's node id from Step 4, not the comment id.
+the base has no CI). Then list every FIX, DECLINE and DEFER thread for the user to resolve, each
+with its link `https://github.com/XP-Quest/<repo>/pull/<N>#discussion_r<databaseId>` (the first
+comment's `databaseId` from Step 4). Leave NEEDS USER threads out of that list; they are reported
+separately.
 
 Then update the PR body's follow-up section (a `## Review follow-up (Copilot, N findings)` table
 of finding and disposition, as in recent PRs) via the REST PATCH in Step 2.
@@ -307,18 +306,20 @@ bash ~/xpquest/.xpq-org-main/scripts/pr-unresolved-threads.sh <repo> <N>
 ```
 
 Exit 0 means zero unresolved. Exit 1 prints each unresolved thread (id, author, `path:line`,
-first line): say which and why. Exit 2 is an API error; retry once, then report it. Do not
-report done while a thread you were responsible for is unresolved without an explicit reason.
+first line). Every unresolved thread must be on the Step 8 hand-off list or a NEEDS USER item;
+say which and why for any other. Exit 2 is an API error; retry once, then report it.
 
 Final report:
 
 1. A table with columns **thread | disposition | commit | test**. Thread is `path:line` plus a few
    words. Commit is the sha, the filed issue for DEFER, or `—`. Test is the test name with
    "fails without fix: yes", or `n/a — <why>`.
-2. Unresolved count from the re-query, and the list if non-zero.
+2. Threads for the user to resolve: the Step 8 hand-off list with links, and the unresolved
+   count from the re-query.
 3. CI: state and head sha, or "no CI for base `<base>`; `<command>` passed on `<sha>`".
 4. PR title and description: updated or unchanged, and anything left for the user.
 5. Human threads and NEEDS USER items.
-6. The last line: `PR <url> is ready for you to review and merge.` Say that only if the unresolved
-   count is zero or fully explained and Step 7 passed. Otherwise say what blocks it. Do not describe
+6. The last line: `PR <url> is ready for you to review and merge once you resolve the <k>
+   threads listed above.` (drop the clause when `<k>` is 0). Say that only if every unresolved
+   thread is on the hand-off list or explained, and Step 7 passed. Otherwise say what blocks it. Do not describe
    the PR as merged, merging or auto-merging.
