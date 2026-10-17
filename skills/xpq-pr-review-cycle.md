@@ -9,10 +9,11 @@ Takes one PR to "ready for the user to merge". It runs when invoked and finishes
 ready or it is blocked. It does not stay resident. To cover several PRs, run one invocation per
 PR, each in its own worktree (the `~/xpquest` clones are shared with other sessions).
 
-Authority: CLAUDE.md §8 (review habits) and §13 (guardrails), SR_ED_CONVENTIONS.md "PR and
-issue lifecycle" and "Issue-driven commit workflow". Where this skill restates one of those,
-the doc wins. The PR title format in Step 2 is the exception: it is not in the conventions doc
-and is taken from the titles of merged PRs.
+Authority: this skill is the source for the PR review procedure (Steps 2–9), including the
+commands and how threads are replied to and resolved. CLAUDE.md §13 (guardrails) and
+SR_ED_CONVENTIONS.md "PR and issue lifecycle" and "Issue-driven commit workflow" win over it
+where they overlap. The PR title format in Step 2 is not in the conventions doc; it is taken
+from the titles of merged PRs.
 
 ---
 
