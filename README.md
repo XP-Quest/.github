@@ -272,7 +272,9 @@ For Claude's sessions use a fine-grained personal access token instead:
 
 - Resource owner `XP-Quest`, the five repos, an expiry (for example 90 days).
 - Repository permissions: Contents **read**, Pull requests **read and write**, Issues **read and
-  write**, Metadata read, Checks read, Commit statuses read. The REST merge endpoint requires
+  write**, Metadata read, Actions read, Commit statuses read. Fine-grained tokens have no
+  Checks permission, so the skill reads CI from workflow runs. They also cannot resolve review
+  threads, so the skill leaves resolving to you. The REST merge endpoint requires
   Contents **write**, so this token cannot call it. Pushes use SSH and are unaffected.
 - Add the organization permission Projects (read and write) only if Claude should keep setting
   board Status.
@@ -343,9 +345,11 @@ files for narrative context, and writes the enriched output.
 Takes one open PR to "ready for you to merge". With no arguments it uses the current branch's PR.
 It rewrites a default or template-only PR title and description from the issue, waits for the
 Copilot review, sorts each Copilot thread into FIX, DECLINE or DEFER (a filed issue), makes each
-fix with a test that fails without it, replies on every thread, and resolves them once CI is
-green. `scripts/pr-unresolved-threads.sh` is the final gate. It never merges, and it stops if the
-merge guard is not loaded. To run several PRs at once, start one invocation per PR from
+fix with a test that fails without it, replies on every thread, and lists them for you to resolve
+once CI is green (or the local test suite passes, where the PR's base has no CI). Copilot reviews
+once, when the PR opens; the skill does not wait for a re-review after fixes.
+`scripts/pr-unresolved-threads.sh` is the final gate. It never merges, and it stops if the merge
+guard is not loaded. To run several PRs at once, start one invocation per PR from
 `~/xpquest`, each in its own worktree.
 
 ```bash
