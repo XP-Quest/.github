@@ -1,6 +1,6 @@
 ---
 name: xpq-pr-review-cycle
-description: Take an open XP Quest PR from "opened" to "ready for the user to merge". Normalises the PR title and description (issue-derived, not the GitHub default), waits for the Copilot review, triages every Copilot thread into FIX / DECLINE / DEFER, implements fixes with mutation-verified tests, replies on and resolves every thread once CI is green, then reports. Never merges. Run as /xpq-pr-review-cycle [<repo> <N>]; with no arguments it uses the PR for the current branch.
+description: Take an open XP Quest PR from "opened" to "ready for the user to merge". Normalises the PR title and description (issue-derived, not the GitHub default), waits for the Copilot review, triages every Copilot thread into FIX / DECLINE / DEFER, implements fixes with mutation-verified tests, replies on and resolves every thread once CI (or, where the base has no CI, the local test suite) passes, then reports. Never merges. Run as /xpq-pr-review-cycle [<repo> <N>]; with no arguments it uses the PR for the current branch.
 ---
 
 # xpq-pr-review-cycle
@@ -149,10 +149,13 @@ gh api -X PATCH repos/XP-Quest/<repo>/pulls/<N> -f title="<title>" -F body=@<fil
 
 ## Step 3: Wait for the Copilot review
 
-Poll `gh pr view <N> -R XP-Quest/<repo> --json headRefOid,reviews` until a review whose author
-login starts with `copilot` exists on the current `headRefOid` (the login is
-`copilot-pull-request-reviewer`). Poll every 60 seconds for up to 20 minutes. Foreground `sleep`
-is blocked; use the Monitor tool with an until-loop.
+Copilot reviews a PR once, when it is opened. It does not re-review later pushes, so its review
+can be on an older commit than the current head.
+
+Poll `gh pr view <N> -R XP-Quest/<repo> --json reviews` until a review whose author login starts
+with `copilot` exists on any commit of the PR (the login is `copilot-pull-request-reviewer`).
+Poll every 60 seconds for up to 20 minutes. Foreground `sleep` is blocked; use the Monitor tool
+with an until-loop.
 
 - No review after 20 minutes: report "no Copilot review arrived" and stop. That is not the same
   as "clean"; never say the PR has no findings on that basis.
@@ -221,22 +224,29 @@ For each FIX, on the PR's head branch:
 One commit per distinct fix keeps the table below readable. Do not fold unrelated threads into
 one commit.
 
-After pushing, repeat Step 3 for a re-review on the new head (up to 10 minutes). New Copilot
-threads are another round, up to three rounds in total. If it is still producing threads after
-that, stop and report.
-
-Keep the ids of the threads you have already triaged. Threads stay unresolved until Step 8, so
-each re-review query returns the old ids together with the new ones. In a later round, triage
-only ids that are not in your list, and reply once per thread.
+There is one round of triage. Do not wait for or request a Copilot re-review after pushing;
+go to Step 7 once the last fix is pushed.
 
 ## Step 7: CI
 
-`gh pr checks <N> -R XP-Quest/<repo>` exits 0 (pass), 1 (fail) or 8 (pending). Poll while it
-exits 8. Green means exit 0 on the current `headRefOid`.
+Do not use `gh pr checks`: it reads check runs, and the fine-grained token cannot (GitHub offers
+no Checks permission for fine-grained tokens). Read the workflow runs on the current head instead:
 
-- Failing: diagnose. A failure your commits introduced is a bug to fix. A pre-existing or
-  unrelated failure is reported, not hidden, and threads stay unresolved.
-- "No checks reported": say that. Do not call it green.
+```bash
+gh run list -R XP-Quest/<repo> --commit <headRefOid> --json name,event,status,conclusion
+```
+
+Ignore runs with `event` `dynamic` (the Copilot review runs as one). Poll every 60 seconds while
+any remaining run's `status` is not `completed`. Green means every remaining run concluded
+`success`, `skipped` or `neutral`.
+
+- Failing: diagnose (`gh run view <id> -R XP-Quest/<repo> --log-failed`). A failure your commits
+  introduced is a bug to fix. A pre-existing or unrelated failure is reported, not hidden, and
+  threads stay unresolved.
+- No runs within 2 minutes of the last push: the repo has no CI for this base (for example,
+  `xpq-api`'s workflows run only on PRs into `main`). Run the repo's full test suite (Step 6,
+  item 3) on the current head, unless it already passed on that exact sha. A pass stands in for
+  CI. Record the command, result and sha for the report. Do not call it CI.
 
 ## Step 8: Reply, then resolve
 
@@ -251,7 +261,8 @@ Reply format: `FIX in <sha> — <what changed>; test: <test name>`, `DECLINE —
 `DEFER — filed XP-Quest/<repo>#<n>`.
 
 **Resolve only when all of these hold:** every Copilot thread has a recorded disposition, all fix
-commits are pushed, and CI is green on the current head. Then resolve every FIX, DECLINE and DEFER
+commits are pushed, and Step 7 passed on the current head (CI green, or the local suite where
+the base has no CI). Then resolve every FIX, DECLINE and DEFER
 thread (CLAUDE.md §8: resolve all of them; a DEFER carries its issue link). Do not resolve a thread
 marked NEEDS USER.
 
@@ -282,9 +293,9 @@ Final report:
    words. Commit is the sha, the filed issue for DEFER, or `—`. Test is the test name with
    "fails without fix: yes", or `n/a — <why>`.
 2. Unresolved count from the re-query, and the list if non-zero.
-3. CI: state and head sha.
+3. CI: state and head sha, or "no CI for base `<base>`; `<command>` passed on `<sha>`".
 4. PR title and description: updated or unchanged, and anything left for the user.
 5. Human threads and NEEDS USER items.
 6. The last line: `PR <url> is ready for you to review and merge.` Say that only if the unresolved
-   count is zero or fully explained and CI is green. Otherwise say what blocks it. Do not describe
+   count is zero or fully explained and Step 7 passed. Otherwise say what blocks it. Do not describe
    the PR as merged, merging or auto-merging.
