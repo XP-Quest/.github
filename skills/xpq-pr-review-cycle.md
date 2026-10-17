@@ -235,21 +235,41 @@ no Checks permission for fine-grained tokens). Read the workflow runs on the cur
 Re-read the head first: `gh pr view <N> -R XP-Quest/<repo> --json headRefOid`. The value from
 Step 1 is stale once Step 6 has pushed fixes. Use the fresh `headRefOid` everywhere below.
 
+**Which workflows apply.** Read the workflow files on the head
+(`gh api "repos/XP-Quest/<repo>/contents/.github/workflows?ref=<headRefOid>"`). A workflow applies
+to this PR when its `on:` has `pull_request` or `pull_request_target`, and:
+
+- its `branches` filter, if any, includes the PR's base;
+- its `types`, if any, include `opened`, `synchronize` or `reopened` (a `closed`-only workflow
+  such as `branch-cleanup` does not gate review);
+- its `paths` or `paths-ignore` filter, if any, matches at least one file in
+  `gh pr diff <N> -R XP-Quest/<repo> --name-only` (`xpq-infra`'s `bicep-validate` has one).
+
+Decide from the triggers, never from whether runs have appeared. Runs on the same sha from other
+workflows, or from an earlier base, are not this PR's CI.
+
+**No workflow applies:** the base has no CI (for example, PRs into `dev` in `xpq-api`). Run the
+repo's full test suite (Step 6, item 3) on the current head, unless it already passed on that
+exact sha. A pass stands in for CI. Record the command, result and sha for the report. Do not
+call it CI.
+
+**Otherwise,** take the newest run of each applicable workflow on the head:
+
 ```bash
-gh run list -R XP-Quest/<repo> --commit <headRefOid> --json name,event,status,conclusion
+gh run list -R XP-Quest/<repo> --commit <headRefOid> --workflow <file> --limit 1 --json databaseId,event,status,conclusion
 ```
 
-Ignore runs with `event` `dynamic` (the Copilot review runs as one). Poll every 60 seconds while
-any remaining run's `status` is not `completed`. Green means every remaining run concluded
-`success`, `skipped` or `neutral`.
+Older runs of the same workflow on the same sha are superseded (an `edited` run after Step 2 can
+replace an earlier failure). Poll every 60 seconds while a newest run's `status` is not
+`completed`. Green means every applicable workflow's newest run concluded `success`, `skipped`
+or `neutral`.
 
 - Failing: diagnose (`gh run view <id> -R XP-Quest/<repo> --log-failed`). A failure your commits
   introduced is a bug to fix. A pre-existing or unrelated failure is reported, not hidden, and
   threads stay unresolved.
-- No runs within 2 minutes of the last push: the repo has no CI for this base (for example,
-  `xpq-api`'s workflows run only on PRs into `main`). Run the repo's full test suite (Step 6,
-  item 3) on the current head, unless it already passed on that exact sha. A pass stands in for
-  CI. Record the command, result and sha for the report. Do not call it CI.
+- An applicable workflow has no run after 10 minutes: CI is missing, not passing. Check
+  `gh pr view <N> -R XP-Quest/<repo> --json mergeable` (`pull_request` workflows do not run on a
+  conflicted PR), report it, and keep the threads unresolved. Do not fall back to the local suite.
 
 ## Step 8: Reply, then resolve
 
