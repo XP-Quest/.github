@@ -50,7 +50,7 @@ Two places the rule deliberately does **not** apply:
 
 ## Issue-driven commit workflow
 
-Every code change is anchored to a GitHub issue. The issue is the persistent *why*; the commit is a checkpoint *what*; the daily log derived by `scripts/daily_git_summary.sh` connects the two for SR&ED evidence.
+Every code change is anchored to a GitHub issue. The issue is the persistent *why*; the commit is a checkpoint *what*; the daily log derived by `daily_git_summary.sh` (XP-Quest/xpq-devops) connects the two for SR&ED evidence.
 
 ### Rules
 
@@ -95,7 +95,7 @@ Six months later at claim prep, those bullets link to issue #42's full comment t
 
 ### How the parser stays accurate (three layers)
 
-**Layer 1 — Prevention.** The `commit-msg` hook rejects (or auto-prepends to) commits whose subject lacks `#NNN:`, where `NNN` is derived from the branch name. Installed via `scripts/install-hooks.sh`.
+**Layer 1 — Prevention.** The `commit-msg` hook rejects (or auto-prepends to) commits whose subject lacks `#NNN:`, where `NNN` is derived from the branch name. Installed via `scripts/install-hooks.sh` in XP-Quest/xpq-devops.
 
 **Layer 2 — Mechanical recovery.** If a commit subject still lacks `#NNN:` (e.g., committed in a repo where the hook isn't installed), the parser inspects branches containing the commit via `git branch --all --contains` and looks for a branch name matching `^<digits>-`. When found, the issue is recovered silently — no GitHub write needed.
 
@@ -277,7 +277,7 @@ is the one thing both machines read and write for a given date:
   identical regardless of which machine runs the script, provided both have fetched — no
   merge bookkeeping needed there.
 
-See XP-Quest/.github#41 for the design history and `scripts/tests/daily_git_summary.bats`
+See XP-Quest/.github#41 for the design history and `scripts/tests/daily_git_summary.bats` in XP-Quest/xpq-devops
 ("Merge:" and "Starter log:" test groups) for the behavioral contract this rests on.
 
 ## Client-work data handling
@@ -289,7 +289,7 @@ derived from the Time Tracker export. The value didn't exist anywhere in the Tra
 model (confirmed by DB inspection — the project's description field is immutable and blank,
 and the app has no code path that ever updates it) — it was authored by the session itself.
 Separately, the real client name and project code had also been committed as test fixture data
-in `scripts/tests/daily_git_summary.bats` (see XP-Quest/.github#49 for both fixes).
+in `scripts/tests/daily_git_summary.bats`, now in XP-Quest/xpq-devops (see XP-Quest/.github#49 for both fixes).
 
 1. **No hardcoded business-data literals in any script, ad-hoc or otherwise.** A script that
    writes to a log, database, or file must derive every value (description, client name,
