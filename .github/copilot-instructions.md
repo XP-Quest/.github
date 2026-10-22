@@ -20,10 +20,12 @@ Polyrepo under `~/xpquest/` (WSL path). Each repo has its own CI and deploy targ
 
 | Local dir      | GitHub remote          | Purpose                      |
 |----------------|------------------------|------------------------------|
-| `xpq-org/`     | XP-Quest/.github       | Org health, scripts, templates |
+| `xpq-org/`     | XP-Quest/.github       | Org health: templates, conventions, reusable workflows |
+| `xpq-devops/`  | XP-Quest/xpq-devops    | Tooling: scripts, hooks, skills (private) |
 | `xpq-web/`     | XP-Quest/xpq-web       | React SPA (Azure SWA)        |
-| `xpq-api/`     | XP-Quest/xpq-api       | Quarkus BFF (AKS)            |
-| `xpquest-spa/` | XP-Quest/xpquest-spa   | Consulting/marketing site    |
+| `xpq-api/`     | XP-Quest/xpq-api       | Quarkus BFF (Azure Container Apps) |
+| `xpq-infra/`   | XP-Quest/xpq-infra     | Bicep, k8s, local stack      |
+| `xpquest-spa/` | XP-Quest/xpquest-spa   | Corporate site               |
 
 ## SR&ED Work Packages
 
@@ -55,26 +57,16 @@ ORM/schema/migration; auth flows; billing; CI/CD; standard observability.
 
 ## Tech Stack
 
-- **Frontend:** React SPA (TypeScript, Vite/CRA)
-- **Backend:** Quarkus (Java 21), groupId `ca.xpquest`, artifactId `xpq-api`
-- **Cloud:** Azure (AKS for API, Static Web Apps for SPA)
-- **Auth:** AKS ingress + OIDC filters
+- **Frontend:** React SPA (TypeScript, Vite)
+- **Backend:** Quarkus (Java 25), groupId `ca.xpquest`, artifactId `xpq-api`
+- **Cloud:** Azure (Container Apps for the API, Static Web Apps for the SPA)
+- **Auth:** Application-managed OIDC in the Quarkus BFF (`quarkus-oidc`); Microsoft Entra External ID
 - **DB:** PostgreSQL + pgvector (vector search); relational schema TBD
 - **Dev OS:** WSL2 (Ubuntu) on Windows
 
 Prefer Java for backend examples. Use the most appropriate language for the problem.
 
-## Scripts (in xpq-org/scripts/)
-
-| Script                      | Purpose                                                  |
-|-----------------------------|----------------------------------------------------------|
-| `daily_git_summary.sh DATE` | Commit summary for one date, grouped by issue            |
-| `historical_git_summary.sh` | Batch daily summaries from checkpoint to yesterday       |
-| `install-hooks.sh`          | Install commit-msg and other Git hooks into a repo       |
-
 ## Constraints
 
 - Solo founder — contemporaneous evidence (issues, commits, daily logs, Time Tracker records) is the CRA claim.
 - Never inflate SR&ED labeling. Routine engineering wrongly tagged is a larger risk than under-tagging.
-- CCPC status governs 35% refundable ITC rate — share structure decisions need accountant sign-off.
-- IP must be assigned to the corporation before expenditures are claimable.
