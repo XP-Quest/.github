@@ -16,18 +16,16 @@ If it's routine engineering, mark "Not SR&ED-eligible" and move on.
 ## Lifecycle
 
 <!--
-Base & closing — see SR_ED_CONVENTIONS.md "PR and issue lifecycle":
-- feature → dev (or sub-issue → epic branch): base is dev / the epic branch. Reference the
-  issue with a plain #NN. Do NOT use Closes here — it would not fire anyway (only main closes).
-- PR to main (dev→main promotion in two-track repos, feature→main in single-track xpq-org):
-  this is the close point. Put the literal keyword on the Merge action line below, repeated
-  per issue (GitHub closes only the first one otherwise): Closes #NN, Closes #NN, …
-  A bare "#NN" does NOT close — the keyword must directly precede each number.
-  The pr-lifecycle guard fails the PR if no honoured keyword is present.
+Base & closing — see SR_ED_CONVENTIONS.md "When issues close":
+- feature → dev (deployable repos) or feature → main (single-track repos): merging closes the
+  issue. Write the keyword on the Closes line, repeated per issue (GitHub closes only the
+  first one otherwise): Closes #NN, Closes #NN. A bare "#NN" does NOT close.
+  The pr-lifecycle guard fails the PR if no keyword is present (N-trivial-fixes branches exempt).
+- dev → main promotion, or sub-issue → epic branch: no closing keyword. Write "n/a".
 -->
 
 - Base branch:
-- Merge action (PRs to main only): Closes #<n>[, Closes #<n>, …]
+- Closes: Closes #<n>[, Closes #<n>, …]
 
 ## Test Plan
 
