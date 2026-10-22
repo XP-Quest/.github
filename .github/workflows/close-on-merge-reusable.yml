@@ -1,0 +1,58 @@
+name: close-on-merge (reusable)
+
+# Org-wide issue closing for PRs merged into a repo's integration branch
+# (`dev`). Called by a thin `close-on-merge.yml` caller in each deployable repo.
+# GitHub only honours Closes/Fixes/Resolves on the default branch (`main`), so
+# this closes each issue named by a closing keyword in the merged PR's body.
+# Single-track repos (PRs into `main`) rely on GitHub's own keyword handling
+# and need no caller. See SR_ED_CONVENTIONS.md "When issues close".
+#
+# Reusable workflows inherit the caller's `github` context, so the caller's
+# `pull_request` payload is available here without passing it as an input.
+#
+# Callers must grant `issues: write`.
+
+on:
+  workflow_call:
+
+permissions:
+  issues: write
+
+jobs:
+  close-issues:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close issues named by closing keywords in the PR body
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Mirror GitHub's grammar: keyword, optional colon, mandatory
+            // whitespace, then #NN. Same-repo references only.
+            const body = context.payload.pull_request.body || '';
+            const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):?\s+#(\d+)\b/gi;
+            const numbers = [...new Set([...body.matchAll(pattern)].map(m => Number(m[1])))];
+
+            if (numbers.length === 0) {
+              core.info('No closing keywords found in the PR body.');
+              return;
+            }
+
+            for (const issue_number of numbers) {
+              const { data: issue } = await github.rest.issues.get({ ...context.repo, issue_number });
+              if (issue.pull_request) {
+                core.warning(`#${issue_number} is a pull request; skipped.`);
+                continue;
+              }
+              if (issue.state === 'closed') {
+                core.info(`#${issue_number} is already closed.`);
+                continue;
+              }
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number,
+                state: 'closed',
+                state_reason: 'completed',
+              });
+              core.info(`Closed #${issue_number}.`);
+            }

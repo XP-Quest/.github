@@ -40,7 +40,7 @@ Applies everywhere the reference is meant to be read as a link: issue bodies, PR
 Two places the rule deliberately does **not** apply:
 
 - **Commit subjects stay bare.** The `#NNN:` prefix is parsed by `daily_git_summary.sh` against the repo the commit lives in, and a commit is always about its own repo's issue. Rule 3's format is unchanged.
-- **Closing keywords stay same-repo.** GitHub does support `Closes owner/repo#NN`, but the convention never needs it: each repo's own promotion PR closes that repo's issues (see *Epics* and *When issues close*). The `pr-lifecycle` guard enforces this shape — its regex requires `#` directly after the keyword, so an owner-qualified `Closes` would fail the check. If a cross-repo close is ever genuinely needed, widen the guard in the same change rather than working around it.
+- **Closing keywords stay same-repo.** GitHub does support `Closes owner/repo#NN`, but the convention never needs it: each repo's own PRs close that repo's issues (see *Epics* and *When issues close*). The `pr-lifecycle` guard enforces this shape — its regex requires `#` directly after the keyword, so an owner-qualified `Closes` would fail the check. If a cross-repo close is ever genuinely needed, widen the guard in the same change rather than working around it.
 
 ## Labels
 
@@ -132,8 +132,8 @@ The commit conventions above govern *what lands on a branch*. This section gover
 
 XP Quest is on the free GitHub plan: no server-side branch protection, no required reviews, no CODEOWNERS. The gates below are **conventions the solo developer keeps by habit**, not rules the platform enforces. They are written so that following them produces a clean, defensible history without any paid tooling.
 
-- **feature → `dev`:** open a PR. This is **self-managed**: the author merges without a review gate. The merge integrates the change on `dev` so it can be validated on the **local** stack in that repo's scope. The PR body carries the issue keyword per the close-on-merge rule below.
-- **`dev` → `main` (promotion):** open a PR. **This is the acceptance gate and it requires the founder's review.** Promote **whenever `dev` is green locally**. Promotions are meant to be frequent and small, and **promoting mid-epic is normal**. The promotion PR is where issues close (next rule). Its test plan includes a cross-repo system test from `main` on the local stack.
+- **feature → `dev`:** open a PR. This is **self-managed**: the author merges without a review gate. The merge integrates the change on `dev`, where it is validated on the **local** stack, and closes the issue (close-on-merge rule below).
+- **`dev` → `main` (promotion):** open a PR. **This is the acceptance gate and it requires the founder's review.** Promote **whenever `dev` is green locally**. Promotions are meant to be frequent and small, and **promoting mid-epic is normal**. Its test plan includes a cross-repo system test from `main` on the local stack.
 - **Release tag on `main`:** cut deliberately, when a standalone issue or an epic is complete (see *Deployment lifecycle*).
 
 Never open a PR from a feature branch straight to `main`. The one exception is a prod-only CI/infra change that can't be validated on `dev` (e.g. the production deploy workflow or Azure resource config): branch from `main` and PR to `main` directly. Claude must never merge a PR autonomously; the founder merges (self-managed means *the founder* merges his own dev-bound PRs without ceremony, not that the agent does).
@@ -160,12 +160,12 @@ GitHub Actions workflows in each deployable repo implement this contract; the co
 
 ### When issues close (the close-on-merge rule)
 
-GitHub's `Closes #NN` / `Fixes #NN` keyword **only auto-closes when the PR merges into the repository's *default* branch** (`main`). A PR that merges into `dev` carrying `Closes #NN` does **not** close the issue — GitHub silently holds the keyword.
+**An issue closes when its PR merges into the repo's integration branch**: `dev` in the deployable repos, `main` in the single-track ones. The solo developer system-tests `dev` directly, so a `dev` merge is the done point. Release is a separate, later event, tracked by the tag and, for epics, by closing the epic issue by hand (§Epics).
 
-That mechanic drives the rule:
-
-1. **Put `Closes #NN` in the `dev` → `main` promotion PR**, never in the feature → `dev` PR. An issue is "done" when it reaches `main`, meaning it has been system-tested and is releasable, which is exactly when GitHub will honour the keyword. Release is a separate, later event: it is tracked by the tag and, for epics, by closing the epic issue (§Epics). A promotion PR that carries several features closes them all — repeat the keyword per issue (GitHub only honours the first one otherwise): `Closes #41, closes #42, closes #43`.
-2. **Feature → `dev` PRs may carry the keyword — it links, it cannot close.** Because the keyword only fires on default-branch merges, `Closes #NN` in a dev-bound PR is inert for closing — but it is the only way to get the PR into the issue's **Development** section (and therefore the project board's linked-PR indicator). One catch: GitHub registers the link only while the PR's base **is** the default branch. So either create the PR against `main` with the keyword and immediately retarget to `dev`, or flip an existing PR's base to `main` and back (`gh api -X PATCH .../pulls/N -f base=main`, verify, then `-f base=dev`) — the link survives retargeting. State in the PR body that closure happens at promotion.
+1. **Put `Closes #NN` in the feature → `dev` PR body**, repeated per issue (`Closes #41, Closes #42`). GitHub honours the keyword only on merges into the default branch (`main`), so each deployable repo's `close-on-merge.yml` caller runs the org-wide `close-on-merge-reusable.yml` on every merged PR into `dev` and closes each issue the body names. Single-track repos rely on GitHub's own keyword handling.
+2. **The `pr-lifecycle` guard checks every PR into the integration branch for a keyword.** It is advisory (no branch protection). `N-trivial-fixes` branches are exempt; never put a closing keyword for a standing trivial-fixes issue.
+3. **Promotion PRs (`dev` → `main`) carry no closing keywords.** Their issues are already closed.
+4. **Development link.** GitHub adds a PR to the issue's **Development** section only while the PR's base is the default branch. Create the PR against `main` and immediately retarget it to `dev`, or flip an existing PR's base to `main` and back (`gh api -X PATCH .../pulls/N -f base=main`, verify, then `-f base=dev`); the link survives retargeting.
 
 ### Branch hygiene
 
@@ -207,8 +207,8 @@ dev
 - **Sub-PRs target the epic branch**, not `dev`. Check the base dropdown every time — a sub-PR accidentally opened against `dev` pushes a half-finished slice onto the integration branch and from there toward `main`, breaking the "`main` is always releasable" invariant.
 - **Integrate from `dev` frequently.** The epic branch is long-lived, so it drifts from `dev` as other work lands. Merge `dev` → epic branch on a regular cadence (and cascade into the open sub-branches), so the final promotion is a small reconciliation instead of a large one. Integrate early, integrate often — do not let an epic branch sit for weeks.
 - **Merge into the epic branch; never rebase it.** Rebasing the integration branch orphans the sub-branches based on it.
-- **Manually close each sub-issue when its sub-PR merges into the epic branch.** Because `Closes` only fires on `main` (above), sub-PRs into the epic branch will *not* auto-close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the deliverable ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
-- **The epic issue `#E` closes at release.** Close it by hand when the release tag that ships it is cut, since no keyword fires on a tag. Do not put `Closes #E` in a promotion PR. So sub-issues close at *integration*, and the epic closes at *release*. Sub-issues closing on the epic branch are the deliberate, narrow exception to the close-on-merge rule above: the only place an issue closes before reaching `main`.
+- **Manually close each sub-issue when its sub-PR merges into the epic branch.** The close-on-merge workflow runs only on merges into `dev`, so sub-PRs into the epic branch do *not* close their issues. Closing them by hand at integration is what keeps the epic's sub-issue progress bar live — and that bar is your "is the deliverable ready?" signal. The closure means "this slice is code-complete and integrated"; it ships when the epic ships.
+- **The epic issue `#E` closes at release.** Close it by hand when the release tag that ships it is cut, since no keyword fires on a tag. Do not put `Closes #E` in a promotion PR. So sub-issues close at *integration*, and the epic closes at *release*. Sub-issues on the epic branch are the one place an issue is closed by hand rather than by its merge.
 - **The epic branch is deploy-silent.** Pushing the epic branch deploys nothing, and sub-PRs into it get no environment. The integrated whole reaches `dev` (and local validation) when the epic branch merges to `dev`, then `main` (cross-repo system test) at the next promotion. It gets its cloud test window at its release candidate tag (see *Deployment lifecycle*).
 - **SR&ED work stays 1:1.** The epic model is a non-SR&ED convenience. A SR&ED research issue is its own branch with its own granular commit trail (its Experiment Log *issues* are children, not branches) — don't fold SR&ED investigations onto an epic branch, or you blur the per-issue evidence the claim depends on.
 
@@ -220,7 +220,7 @@ When an epic spans repos (Auth MVP-2 — Entra + ACA + Key Vault infra in `xpq-i
 - **Each sub-issue follows the ordinary feature → `dev` flow in its own repo.** No epic branch; each repo's `dev` integrates its own slice. The `commit-msg` hook is satisfied with no change — every commit is still `#<sub-issue>` on a `<sub-issue>-slug` branch.
 - **Each repo promotes independently and often.** An infra slice can sit on `xpq-infra` `main` while its app slice is still on `xpq-api` `dev`. Neither is in cloud, because cloud waits for the release tags. Every slice that reaches `main` must still be inert when released, so an unrelated release of that repo can't ship it half-wired.
 - **Completion = all sub-issues across all repos on their `main`s,** system-tested together locally. Then cut a release **in each affected repo**. These tags are the atomic unit and must reach **staging together**, so the staging workflow builds from the set (app image(s) + the tagged Bicep), not from one repo in isolation. Sequence the prod releases in issue order (infra first) so prod applies in dependency order. Staging, built fresh from Bicep, is order-insensitive by construction.
-- **`Closes #sub`** rides each repo's own promotion PR, so sub-issues close when they reach `main`. **`#E`** is closed by hand when the last release tag is cut.
+- **`Closes #sub`** rides each sub-issue's feature → `dev` PR in its own repo, so sub-issues close when they merge to `dev`. **`#E`** is closed by hand when the last release tag is cut.
 
 ### The `#4`-class exception
 
