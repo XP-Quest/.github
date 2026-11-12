@@ -28,8 +28,10 @@ Tooling (daily-log scripts, git and Claude Code hooks, skills) lives in the priv
 │   ├── workflows/
 │   │   ├── pr-lifecycle*.yml       Closing-keyword guard (reusable + this repo's caller)
 │   │   └── branch-cleanup*.yml     Delete merged feature branches on merge to main (reusable + caller)
-│   ├── pull_request_template.md    PR template with SR&ED linkage field
-│   └── copilot-instructions.md     Copilot context for this repo
+│   └── pull_request_template.md    PR template with SR&ED linkage field
+│
+├── archive/
+│   └── copilot-instructions.md     Retired Copilot context (Claude replaced Copilot review)
 │
 ├── scripts/
 │   ├── branch-cleanup.sh           Run by branch-cleanup-reusable.yml (checked out at the workflow's commit)
