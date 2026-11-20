@@ -70,7 +70,6 @@ Founder: *"Pick a chunking strategy for the résumé corpus and start with a fix
 The next morning, `daily_git_summary.sh` produces:
 
 ```markdown
-
 ## xpq-api
 
 - #42: Implement semantic chunking baseline for résumé documents
