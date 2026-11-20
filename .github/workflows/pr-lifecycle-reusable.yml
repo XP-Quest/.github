@@ -40,6 +40,6 @@ jobs:
           if grep -qiE '(close[sd]?|fix(e[sd])?|resolve[sd]?):?[[:space:]]+#[0-9]+' <<< "$BODY"; then
             echo "Closing keyword found."
           else
-            echo "::error::PR body must contain a closing keyword (e.g. 'Closes #NN'). Merging this PR is the close point per SR_ED_CONVENTIONS \"When issues close\"."
+            echo "::error::PR body must contain a closing keyword (e.g. 'Closes #NN'). Merging this PR is the close point per ENG_CONVENTIONS.md \"When issues close\"."
             exit 1
           fi

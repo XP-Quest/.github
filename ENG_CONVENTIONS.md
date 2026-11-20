@@ -1,23 +1,10 @@
-# XP Quest SR&ED Tracking Conventions
+# XP Quest Engineering Conventions
 
-This document describes how XP Quest tracks technological uncertainty investigations across GitHub for the purpose of a Canadian SR&ED claim (federal) stacked with the Ontario Innovation Tax Credit (OITC).
+This document describes how XP Quest tracks work across GitHub: issues, branches, commits, PRs, releases and boards. The same trail is the evidence for a Canadian SR&ED claim (federal) stacked with the Ontario Innovation Tax Credit (OITC); the claim-specific guidance is in *SR&ED* at the end.
 
-It is written for a solo founder/developer who will also be the claim preparer.
+It is written for a solo founder/developer who is also the claim preparer.
 
 ---
-
-## The six work packages (technological uncertainties)
-
-| ID  | Work Package                                                      |
-|-----|-------------------------------------------------------------------|
-| WP1 | Semantic Chunking Strategy for Professional Documents             |
-| WP2 | Relevance Gate Threshold Calibration                              |
-| WP3 | Ambiguity Detection Heuristics                                    |
-| WP4 | Conversational Augmentation Pipeline                              |
-| WP5 | Dual-Score Job Description Correlation Engine                     |
-| WP6 | Multi-Tenant Quota Enforcement with Cost Attribution              |
-
-Every SR&ED research issue must be tagged to one of these (or "Cross-cutting").
 
 ## Issue types
 
@@ -83,6 +70,7 @@ Founder: *"Pick a chunking strategy for the résumé corpus and start with a fix
 The next morning, `daily_git_summary.sh` produces:
 
 ```markdown
+
 ## xpq-api
 
 - #42: Implement semantic chunking baseline for résumé documents
@@ -226,21 +214,6 @@ When an epic spans repos (Auth MVP-2 — Entra + ACA + Key Vault infra in `xpq-i
 
 Trivial fixes (typos, formatting, doc cleanups) tracked under a repo's standing "Trivial fixes" issue are exempt from the promotion ceremony: a single branch, a direct PR, no epic, no sub-issue bookkeeping. Reserve this for genuinely trivial, non-feature changes only.
 
-## Time tracking
-
-CRA wants hours attributable to specific SR&ED work packages, not bulk "I coded today."
-
-Recommended minimum:
-- End-of-day markdown journal entry in the `.github` repo under `journal/YYYY/MM/DD.md`.
-- Two sections: "SR&ED time" (with `WP{n}` tags and issue references) and "Non-SR&ED time."
-- One sentence per entry is enough. Contemporaneous > polished.
-
-If using a tool (Toggl, Harvest, etc.), put the issue number in the description so time entries map back to research issues cleanly at claim time.
-
-(Superseded: the journal/ approach above was replaced by the XP Quest Time Tracker widget +
-`daily_git_summary.sh` + the `xpquest-daily-log` skill — see the workspace CLAUDE.md §6 for the
-current pipeline.)
-
 ## Multi-machine daily-log merge
 
 The founder develops on two machines (desktop **antman**, laptop **flash**, never simultaneously).
@@ -318,7 +291,39 @@ Two GitHub Projects at the org level:
 1. **R&D / AI Engine** — all SR&ED research and experiment issues. Custom fields: Uncertainty (WP1–WP6), Phase.
 2. **Product & Platform** — non-SR&ED engineering. Custom fields: Area, Priority.
 
-## Before filing a research issue, ask yourself
+## SR&ED
+
+Claim-specific guidance. The issue types, labels, commit workflow and boards above produce the evidence; this section covers what the claim needs from them.
+
+### The six work packages (technological uncertainties)
+
+| ID  | Work Package                                                      |
+|-----|-------------------------------------------------------------------|
+| WP1 | Semantic Chunking Strategy for Professional Documents             |
+| WP2 | Relevance Gate Threshold Calibration                              |
+| WP3 | Ambiguity Detection Heuristics                                    |
+| WP4 | Conversational Augmentation Pipeline                              |
+| WP5 | Dual-Score Job Description Correlation Engine                     |
+| WP6 | Multi-Tenant Quota Enforcement with Cost Attribution              |
+
+Every SR&ED research issue must be tagged to one of these (or "Cross-cutting").
+
+### Time tracking
+
+CRA wants hours attributable to specific SR&ED work packages, not bulk "I coded today."
+
+Recommended minimum:
+- End-of-day markdown journal entry in the `.github` repo under `journal/YYYY/MM/DD.md`.
+- Two sections: "SR&ED time" (with `WP{n}` tags and issue references) and "Non-SR&ED time."
+- One sentence per entry is enough. Contemporaneous > polished.
+
+If using a tool (Toggl, Harvest, etc.), put the issue number in the description so time entries map back to research issues cleanly at claim time.
+
+(Superseded: the journal/ approach above was replaced by the XP Quest Time Tracker widget +
+`daily_git_summary.sh` + the `xpquest-daily-log` skill — see the workspace CLAUDE.md §6 for the
+current pipeline.)
+
+### Before filing a research issue, ask yourself
 
 1. Is there a real technological uncertainty here that a skilled practitioner couldn't resolve with existing knowledge and routine effort? If no, file it as an Engineering Task instead.
 2. Can I state a hypothesis that could be falsified? If no, keep thinking before filing.
@@ -326,7 +331,7 @@ Two GitHub Projects at the org level:
 
 If any of those is "no," you probably don't have a SR&ED investigation yet — just engineering work.
 
-## At claim time
+### At claim time
 
 The narrative for each work package writes itself from the research issues under that uncertainty:
 
@@ -338,6 +343,6 @@ The narrative for each work package writes itself from the research issues under
 
 If those fields are populated contemporaneously, the claim writes itself. If they're not, you're reconstructing 14 months later from git log and memory — which is where most solo-founder SR&ED claims go wrong.
 
-## Not legal/tax advice
+### Not legal/tax advice
 
 This is a working convention, not a legal opinion on SR&ED eligibility. Final eligibility decisions belong to your accountant and, ultimately, to CRA. Document thoroughly, label conservatively, and escalate ambiguous cases to your advisor before claim submission.

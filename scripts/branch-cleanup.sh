@@ -5,7 +5,7 @@
 # Called by .github/workflows/branch-cleanup-reusable.yml for a PR merged into
 # main. GitHub's own "Automatically delete head branches" cannot exempt the
 # N-trivial-fixes catch-all branches or filter by base, so cleanup is done here
-# instead. See SR_ED_CONVENTIONS.md "Branch hygiene".
+# instead. See ENG_CONVENTIONS.md "Branch hygiene".
 #
 # Candidates:
 #   - the PR's own head branch (Track 2 / single-track PRs), and

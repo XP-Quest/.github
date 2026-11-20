@@ -5,7 +5,7 @@ name: close-on-merge (reusable)
 # GitHub only honours Closes/Fixes/Resolves on the default branch (`main`), so
 # this closes each issue named by a closing keyword in the merged PR's body.
 # Single-track repos (PRs into `main`) rely on GitHub's own keyword handling
-# and need no caller. See SR_ED_CONVENTIONS.md "When issues close".
+# and need no caller. See ENG_CONVENTIONS.md "When issues close".
 #
 # Reusable workflows inherit the caller's `github` context, so the caller's
 # `pull_request` payload is available here without passing it as an input.

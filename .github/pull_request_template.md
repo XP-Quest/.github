@@ -16,7 +16,7 @@ If it's routine engineering, mark "Not SR&ED-eligible" and move on.
 ## Lifecycle
 
 <!--
-Base & closing — see SR_ED_CONVENTIONS.md "When issues close":
+Base & closing — see ENG_CONVENTIONS.md "When issues close":
 - feature → dev (deployable repos) or feature → main (single-track repos): merging closes the
   issue. Write the keyword on the Closes line, repeated per issue (GitHub closes only the
   first one otherwise): Closes #NN, Closes #NN. A bare "#NN" does NOT close.

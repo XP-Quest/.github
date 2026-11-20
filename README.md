@@ -5,8 +5,8 @@ community health files only from a public repository named `.github`. It holds:
 
 1. **GitHub templates** — issue forms and the PR template, applied to every XP-Quest repo that
    does not define its own.
-2. **Conventions** — `SR_ED_CONVENTIONS.md`: issue types, labels, branch and commit rules, the PR
-   and issue lifecycle, and SR&ED screening.
+2. **Conventions** — `ENG_CONVENTIONS.md`: issue types, labels, branch and commit rules, the PR
+   and issue lifecycle, and an SR&ED section (work packages, time tracking, screening, claim time).
 3. **Reusable workflows** — `pr-lifecycle` (closing-keyword guard) and `branch-cleanup` (delete
    merged feature branches), called by a thin caller in each repo.
 
@@ -37,7 +37,7 @@ Tooling (daily-log scripts, git and Claude Code hooks, skills) lives in the priv
 │   ├── branch-cleanup.sh           Run by branch-cleanup-reusable.yml (checked out at the workflow's commit)
 │   └── tests/                      bats tests for branch-cleanup.sh (scripts/tests/run_tests.sh)
 │
-├── SR_ED_CONVENTIONS.md
+├── ENG_CONVENTIONS.md
 └── README.md
 ```
 
