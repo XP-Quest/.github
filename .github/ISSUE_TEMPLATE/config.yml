@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: SR&ED Conventions
-    url: https://github.com/Red-Shirt-Engineering/.github/blob/main/SR_ED_CONVENTIONS.md
-    about: Read this before filing a research issue. Explains the audit-trail workflow.
+  - name: Engineering Conventions
+    url: https://github.com/XP-Quest/.github/blob/main/ENG_CONVENTIONS.md
+    about: Read this before filing an issue. Explains the issue, branch and commit workflow and the SR&ED audit trail.
